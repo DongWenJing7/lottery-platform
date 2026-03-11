@@ -73,6 +73,21 @@ public class AdminService {
                 new LambdaQueryWrapper<DeliveryOrder>().ge(DeliveryOrder::getCreatedAt, todayStart)
         );
 
+        // 代理统计
+        long totalAgents = agentMapper.selectCount(null);
+        // 代理总拉新 = 所有有agentId的玩家数
+        long totalAgentRefer = userMapper.selectCount(
+                new LambdaQueryWrapper<User>().isNotNull(User::getAgentId)
+        );
+        // 代理总佣金
+        List<Agent> allAgents = agentMapper.selectList(null);
+        double totalCommission = allAgents.stream()
+                .mapToDouble(a -> a.getTotalCommission() != null ? a.getTotalCommission().doubleValue() : 0).sum();
+        // 今日代理拉新
+        long todayAgentRefer = userMapper.selectCount(
+                new LambdaQueryWrapper<User>().isNotNull(User::getAgentId).ge(User::getCreatedAt, todayStart)
+        );
+
         Map<String, Object> result = new HashMap<>();
         result.put("totalUsers", totalUsers);
         result.put("totalRecharge", totalRecharge);
@@ -83,6 +98,10 @@ public class AdminService {
         result.put("todayRecharge", todayRecharge);
         result.put("todayRechargeAmount", todayRechargeAmount);
         result.put("todayDelivery", todayDelivery);
+        result.put("totalAgents", totalAgents);
+        result.put("totalAgentRefer", totalAgentRefer);
+        result.put("totalCommission", totalCommission);
+        result.put("todayAgentRefer", todayAgentRefer);
         return result;
     }
 
@@ -253,10 +272,30 @@ public class AdminService {
 
     // ==================== 充值管理 ====================
 
-    public PageResult<Map<String, Object>> getRechargeOrders(int page, int size, String status) {
+    public PageResult<Map<String, Object>> getRechargeOrders(int page, int size, String status, String keyword) {
+        // 如果有关键词，先查匹配的用户ID
+        Set<Long> matchUserIds = null;
+        if (keyword != null && !keyword.isEmpty()) {
+            LambdaQueryWrapper<User> userQuery = new LambdaQueryWrapper<User>()
+                    .like(User::getNickname, keyword).or().like(User::getUsername, keyword);
+            matchUserIds = userMapper.selectList(userQuery).stream().map(User::getId).collect(Collectors.toSet());
+        }
+
         LambdaQueryWrapper<RechargeOrder> wrapper = new LambdaQueryWrapper<RechargeOrder>()
-                .eq(status != null && !status.isEmpty(), RechargeOrder::getStatus, status)
-                .orderByDesc(RechargeOrder::getCreatedAt);
+                .eq(status != null && !status.isEmpty(), RechargeOrder::getStatus, status);
+
+        if (keyword != null && !keyword.isEmpty()) {
+            final Set<Long> finalUserIds = matchUserIds;
+            wrapper.and(w -> {
+                w.like(RechargeOrder::getOrderNo, keyword)
+                 .or().like(RechargeOrder::getRemark, keyword);
+                if (!finalUserIds.isEmpty()) {
+                    w.or().in(RechargeOrder::getUserId, finalUserIds);
+                }
+            });
+        }
+
+        wrapper.orderByDesc(RechargeOrder::getCreatedAt);
         Page<RechargeOrder> p = rechargeOrderMapper.selectPage(new Page<>(page, size), wrapper);
 
         // 批量获取用户
@@ -364,10 +403,31 @@ public class AdminService {
 
     // ==================== 发货管理 ====================
 
-    public PageResult<Map<String, Object>> getDeliveryOrders(int page, int size, String status) {
+    public PageResult<Map<String, Object>> getDeliveryOrders(int page, int size, String status, String keyword) {
+        // 如果有关键词，先查匹配的用户ID
+        Set<Long> matchUserIds = null;
+        if (keyword != null && !keyword.isEmpty()) {
+            LambdaQueryWrapper<User> userQuery = new LambdaQueryWrapper<User>()
+                    .like(User::getNickname, keyword).or().like(User::getUsername, keyword);
+            matchUserIds = userMapper.selectList(userQuery).stream().map(User::getId).collect(Collectors.toSet());
+        }
+
         LambdaQueryWrapper<DeliveryOrder> wrapper = new LambdaQueryWrapper<DeliveryOrder>()
-                .eq(status != null && !status.isEmpty(), DeliveryOrder::getStatus, status)
-                .orderByDesc(DeliveryOrder::getCreatedAt);
+                .eq(status != null && !status.isEmpty(), DeliveryOrder::getStatus, status);
+
+        if (keyword != null && !keyword.isEmpty()) {
+            final Set<Long> finalUserIds = matchUserIds;
+            wrapper.and(w -> {
+                w.like(DeliveryOrder::getOrderNo, keyword)
+                 .or().like(DeliveryOrder::getReceiverName, keyword)
+                 .or().like(DeliveryOrder::getReceiverPhone, keyword);
+                if (!finalUserIds.isEmpty()) {
+                    w.or().in(DeliveryOrder::getUserId, finalUserIds);
+                }
+            });
+        }
+
+        wrapper.orderByDesc(DeliveryOrder::getCreatedAt);
         Page<DeliveryOrder> p = deliveryOrderMapper.selectPage(new Page<>(page, size), wrapper);
 
         // 批量获取用户和仓库/奖品信息
@@ -428,8 +488,24 @@ public class AdminService {
 
     // ==================== 代理管理 ====================
 
-    public PageResult<Map<String, Object>> getAgents(int page, int size) {
-        Page<Agent> p = agentMapper.selectPage(new Page<>(page, size), null);
+    public PageResult<Map<String, Object>> getAgents(int page, int size, String keyword) {
+        // 如果有关键词，先查匹配的用户ID
+        Set<Long> matchUserIds = null;
+        if (keyword != null && !keyword.isEmpty()) {
+            LambdaQueryWrapper<User> userQuery = new LambdaQueryWrapper<User>()
+                    .like(User::getNickname, keyword).or().like(User::getUsername, keyword);
+            matchUserIds = userMapper.selectList(userQuery).stream().map(User::getId).collect(Collectors.toSet());
+        }
+
+        LambdaQueryWrapper<Agent> wrapper = new LambdaQueryWrapper<>();
+        if (keyword != null && !keyword.isEmpty()) {
+            if (matchUserIds.isEmpty()) {
+                return PageResult.of(Collections.emptyList(), 0L);
+            }
+            wrapper.in(Agent::getUserId, matchUserIds);
+        }
+
+        Page<Agent> p = agentMapper.selectPage(new Page<>(page, size), wrapper);
         Set<Long> userIds = p.getRecords().stream().map(Agent::getUserId).collect(Collectors.toSet());
         Map<Long, User> userMap = userIds.isEmpty() ? Collections.emptyMap() :
                 userMapper.selectBatchIds(userIds).stream().collect(Collectors.toMap(User::getId, u -> u));
@@ -453,12 +529,113 @@ public class AdminService {
         return PageResult.of(list, p.getTotal());
     }
 
+    // ==================== 图表数据 ====================
+
+    public Map<String, Object> getChartData(int days) {
+        Map<String, Object> result = new HashMap<>();
+
+        // === 趋势数据 ===
+        List<String> dates = new ArrayList<>();
+        List<Long> newUsers = new ArrayList<>();
+        List<Double> rechargeAmount = new ArrayList<>();
+        List<Long> drawCount = new ArrayList<>();
+        List<Long> agentRefers = new ArrayList<>();
+
+        LocalDate today = LocalDate.now();
+        for (int i = days - 1; i >= 0; i--) {
+            LocalDate date = today.minusDays(i);
+            LocalDateTime dayStart = date.atStartOfDay();
+            LocalDateTime dayEnd = date.plusDays(1).atStartOfDay();
+
+            dates.add(String.format("%02d-%02d", date.getMonthValue(), date.getDayOfMonth()));
+
+            // 新增用户
+            newUsers.add(userMapper.selectCount(
+                    new LambdaQueryWrapper<User>()
+                            .eq(User::getRole, "player")
+                            .ge(User::getCreatedAt, dayStart)
+                            .lt(User::getCreatedAt, dayEnd)
+            ));
+
+            // 充值金额
+            List<RechargeOrder> dayOrders = rechargeOrderMapper.selectList(
+                    new LambdaQueryWrapper<RechargeOrder>()
+                            .eq(RechargeOrder::getStatus, "done")
+                            .ge(RechargeOrder::getCreatedAt, dayStart)
+                            .lt(RechargeOrder::getCreatedAt, dayEnd)
+            );
+            rechargeAmount.add(dayOrders.stream()
+                    .mapToDouble(o -> o.getAmount() != null ? o.getAmount() : 0).sum());
+
+            // 抽奖次数
+            drawCount.add(drawRecordMapper.selectCount(
+                    new LambdaQueryWrapper<DrawRecord>()
+                            .ge(DrawRecord::getCreatedAt, dayStart)
+                            .lt(DrawRecord::getCreatedAt, dayEnd)
+            ));
+
+            // 代理拉新
+            agentRefers.add(userMapper.selectCount(
+                    new LambdaQueryWrapper<User>()
+                            .isNotNull(User::getAgentId)
+                            .ge(User::getCreatedAt, dayStart)
+                            .lt(User::getCreatedAt, dayEnd)
+            ));
+        }
+
+        Map<String, Object> trend = new HashMap<>();
+        trend.put("dates", dates);
+        trend.put("newUsers", newUsers);
+        trend.put("rechargeAmount", rechargeAmount);
+        trend.put("drawCount", drawCount);
+        trend.put("agentRefers", agentRefers);
+        result.put("trend", trend);
+
+        // === 代理拉新排行 Top10 ===
+        List<Agent> topAgents = agentMapper.selectList(
+                new LambdaQueryWrapper<Agent>()
+                        .orderByDesc(Agent::getTeamCount)
+                        .last("LIMIT 10")
+        );
+        Set<Long> agentUserIds = topAgents.stream().map(Agent::getUserId).collect(Collectors.toSet());
+        Map<Long, String> nicknames = agentUserIds.isEmpty() ? Collections.emptyMap() :
+                userMapper.selectBatchIds(agentUserIds).stream()
+                        .collect(Collectors.toMap(User::getId, User::getNickname));
+
+        List<Map<String, Object>> agentRanking = topAgents.stream().map(a -> {
+            Map<String, Object> item = new HashMap<>();
+            item.put("nickname", nicknames.getOrDefault(a.getUserId(), "未知"));
+            item.put("teamCount", a.getTeamCount() != null ? a.getTeamCount() : 0);
+            return item;
+        }).collect(Collectors.toList());
+        result.put("agentRanking", agentRanking);
+
+        return result;
+    }
+
     // ==================== 市场管理 ====================
 
-    public PageResult<Map<String, Object>> getMarket(int page, int size, String status) {
+    public PageResult<Map<String, Object>> getMarket(int page, int size, String status, String keyword) {
+        // 如果有关键词，先查匹配的用户ID
+        Set<Long> matchUserIds = null;
+        if (keyword != null && !keyword.isEmpty()) {
+            LambdaQueryWrapper<User> userQuery = new LambdaQueryWrapper<User>()
+                    .like(User::getNickname, keyword).or().like(User::getUsername, keyword);
+            matchUserIds = userMapper.selectList(userQuery).stream().map(User::getId).collect(Collectors.toSet());
+        }
+
         LambdaQueryWrapper<Market> wrapper = new LambdaQueryWrapper<Market>()
-                .eq(status != null && !status.isEmpty(), Market::getStatus, status)
-                .orderByDesc(Market::getCreatedAt);
+                .eq(status != null && !status.isEmpty(), Market::getStatus, status);
+
+        if (keyword != null && !keyword.isEmpty()) {
+            final Set<Long> finalUserIds = matchUserIds;
+            if (finalUserIds.isEmpty()) {
+                return PageResult.of(Collections.emptyList(), 0L);
+            }
+            wrapper.and(w -> w.in(Market::getSellerId, finalUserIds).or().in(Market::getBuyerId, finalUserIds));
+        }
+
+        wrapper.orderByDesc(Market::getCreatedAt);
         Page<Market> p = marketMapper.selectPage(new Page<>(page, size), wrapper);
 
         Set<Long> warehouseIds = p.getRecords().stream().map(Market::getWarehouseId).collect(Collectors.toSet());

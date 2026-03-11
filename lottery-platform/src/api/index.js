@@ -35,6 +35,7 @@ export const agentApi = {
 
 export const adminApi = {
   getDashboard: () => request.get('/admin/dashboard'),
+  getChartData: (days = 7) => request.get('/admin/dashboard/charts', { params: { days } }),
   getPlayers: (params) => request.get('/admin/players', { params }),
   createUser: (data) => request.post('/admin/players', data),
   updateTokens: (id, data) => request.post(`/admin/players/${id}/tokens`, data),
