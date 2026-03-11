@@ -11,7 +11,7 @@
       </el-radio-group>
     </div>
     <el-table :data="list" stripe>
-      <el-table-column prop="id" label="ID" width="70" />
+      <el-table-column type="index" label="序号" width="70" :index="i => (page - 1) * size + i + 1" />
       <el-table-column prop="orderNo" label="订单号" width="200" />
       <el-table-column label="用户" width="100">
         <template #default="{ row }">{{ row.user?.nickname || '-' }}</template>

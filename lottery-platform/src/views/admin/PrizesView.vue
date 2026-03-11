@@ -28,7 +28,7 @@
     </div>
     <div class="card">
       <el-table :data="list" stripe>
-        <el-table-column prop="id" label="ID" width="70" />
+        <el-table-column type="index" label="序号" width="70" :index="i => (page - 1) * psize + i + 1" />
         <el-table-column label="图片" width="80">
           <template #default="{ row }">
             <el-image v-if="row.image" :src="row.image" :preview-src-list="[row.image]" preview-teleported style="width:40px;height:40px;border-radius:6px;cursor:pointer" fit="cover" />

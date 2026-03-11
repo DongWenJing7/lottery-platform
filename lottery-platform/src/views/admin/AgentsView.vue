@@ -6,7 +6,7 @@
     </div>
     <div class="card">
     <el-table :data="list" stripe>
-      <el-table-column prop="id" label="ID" width="70" />
+      <el-table-column type="index" label="序号" width="70" :index="i => (page - 1) * size + i + 1" />
       <el-table-column prop="nickname" label="昵称" />
       <el-table-column prop="level" label="等级" width="80">
         <template #default="{ row }">

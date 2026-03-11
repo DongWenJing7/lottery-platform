@@ -57,12 +57,32 @@ public class AdminService {
                 new LambdaQueryWrapper<DeliveryOrder>().eq(DeliveryOrder::getStatus, "pending")
         );
 
+        // 今日统计
+        long todayNewUsers = userMapper.selectCount(
+                new LambdaQueryWrapper<User>().eq(User::getRole, "player").ge(User::getCreatedAt, todayStart)
+        );
+        List<RechargeOrder> todayDoneOrders = rechargeOrderMapper.selectList(
+                new LambdaQueryWrapper<RechargeOrder>()
+                        .eq(RechargeOrder::getStatus, "done")
+                        .ge(RechargeOrder::getCreatedAt, todayStart)
+        );
+        int todayRecharge = todayDoneOrders.stream().mapToInt(RechargeOrder::getTokens).sum();
+        double todayRechargeAmount = todayDoneOrders.stream()
+                .mapToDouble(o -> o.getAmount() != null ? o.getAmount() : 0).sum();
+        long todayDelivery = deliveryOrderMapper.selectCount(
+                new LambdaQueryWrapper<DeliveryOrder>().ge(DeliveryOrder::getCreatedAt, todayStart)
+        );
+
         Map<String, Object> result = new HashMap<>();
         result.put("totalUsers", totalUsers);
         result.put("totalRecharge", totalRecharge);
         result.put("todayDraw", todayDraw);
         result.put("pendingRecharge", pendingRecharge);
         result.put("pendingDelivery", pendingDelivery);
+        result.put("todayNewUsers", todayNewUsers);
+        result.put("todayRecharge", todayRecharge);
+        result.put("todayRechargeAmount", todayRechargeAmount);
+        result.put("todayDelivery", todayDelivery);
         return result;
     }
 

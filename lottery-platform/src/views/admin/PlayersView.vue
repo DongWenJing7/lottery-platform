@@ -72,7 +72,7 @@
         <el-button type="primary" @click="handleAddItem" :disabled="!addPrizeId">添加奖品</el-button>
       </div>
       <el-table :data="warehouseItems" stripe size="small">
-        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column type="index" label="序号" width="60" />
         <el-table-column label="奖品">
           <template #default="{ row }">{{ row.prize?.name || '-' }}</template>
         </el-table-column>
