@@ -35,6 +35,11 @@
             <span>发货订单</span>
             <span v-if="pendingDelivery" class="badge">{{ pendingDelivery }}</span>
           </el-menu-item>
+          <el-menu-item index="/admin/after-sale">
+            <el-icon><Service /></el-icon>
+            <span>售后管理</span>
+            <span v-if="pendingAfterSale" class="badge">{{ pendingAfterSale }}</span>
+          </el-menu-item>
           <div class="menu-group">代理 & 市场</div>
           <el-menu-item index="/admin/agents"><el-icon><UserFilled /></el-icon><span>代理管理</span></el-menu-item>
           <el-menu-item index="/admin/market"><el-icon><Shop /></el-icon><span>转售市场</span></el-menu-item>
@@ -111,7 +116,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, provide, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/userStore'
@@ -130,6 +135,7 @@ function handleLogout() { userStore.logout(); router.push('/login') }
 // 待处理数量
 const pendingRecharge = ref(0)
 const pendingDelivery = ref(0)
+const pendingAfterSale = ref(0)
 
 async function loadPendingCounts() {
   if (role.value !== 'admin') return
@@ -137,8 +143,12 @@ async function loadPendingCounts() {
     const res = await adminApi.getDashboard()
     pendingRecharge.value = res.data.pendingRecharge || 0
     pendingDelivery.value = res.data.pendingDelivery || 0
+    pendingAfterSale.value = res.data.pendingAfterSale || 0
   } catch (e) { ElMessage.error(e.message || '操作失败') }
 }
+
+// 暴露给子页面，操作后立即刷新红点
+provide('refreshPendingCounts', loadPendingCounts)
 
 let timer = null
 onMounted(() => {

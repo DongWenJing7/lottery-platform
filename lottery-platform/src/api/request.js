@@ -12,6 +12,8 @@ request.interceptors.request.use(config => {
 
 request.interceptors.response.use(
   response => {
+    // Blob responses (e.g. file downloads) bypass JSON parsing
+    if (response.config.responseType === 'blob') return response.data
     const res = response.data
     if (res.code !== 200 && res.code !== 0) return Promise.reject(new Error(res.message || '请求失败'))
     return res

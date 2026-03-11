@@ -7,13 +7,18 @@ import com.lottery.common.exception.BusinessException;
 import com.lottery.entity.*;
 import com.lottery.mapper.*;
 import lombok.RequiredArgsConstructor;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -31,6 +36,8 @@ public class AdminService {
     private final WarehouseMapper warehouseMapper;
     private final MarketMapper marketMapper;
     private final LotteryConfigMapper lotteryConfigMapper;
+    private final AfterSaleMapper afterSaleMapper;
+    private final SystemConfigMapper systemConfigMapper;
 
     // ==================== 数据概览 ====================
 
@@ -57,12 +64,37 @@ public class AdminService {
                 new LambdaQueryWrapper<DeliveryOrder>().eq(DeliveryOrder::getStatus, "pending")
         );
 
+        long pendingAfterSale = afterSaleMapper.selectCount(
+                new LambdaQueryWrapper<AfterSale>().eq(AfterSale::getStatus, "pending")
+        );
+
+        // 今日统计
+        long todayNewUsers = userMapper.selectCount(
+                new LambdaQueryWrapper<User>().eq(User::getRole, "player").ge(User::getCreatedAt, todayStart)
+        );
+        List<RechargeOrder> todayDoneOrders = rechargeOrderMapper.selectList(
+                new LambdaQueryWrapper<RechargeOrder>()
+                        .eq(RechargeOrder::getStatus, "done")
+                        .ge(RechargeOrder::getCreatedAt, todayStart)
+        );
+        int todayRecharge = todayDoneOrders.stream().mapToInt(RechargeOrder::getTokens).sum();
+        double todayRechargeAmount = todayDoneOrders.stream()
+                .mapToDouble(o -> o.getAmount() != null ? o.getAmount() : 0).sum();
+        long todayDelivery = deliveryOrderMapper.selectCount(
+                new LambdaQueryWrapper<DeliveryOrder>().ge(DeliveryOrder::getCreatedAt, todayStart)
+        );
+
         Map<String, Object> result = new HashMap<>();
         result.put("totalUsers", totalUsers);
         result.put("totalRecharge", totalRecharge);
         result.put("todayDraw", todayDraw);
         result.put("pendingRecharge", pendingRecharge);
         result.put("pendingDelivery", pendingDelivery);
+        result.put("pendingAfterSale", pendingAfterSale);
+        result.put("todayNewUsers", todayNewUsers);
+        result.put("todayRecharge", todayRecharge);
+        result.put("todayRechargeAmount", todayRechargeAmount);
+        result.put("todayDelivery", todayDelivery);
         return result;
     }
 
@@ -233,10 +265,31 @@ public class AdminService {
 
     // ==================== 充值管理 ====================
 
-    public PageResult<Map<String, Object>> getRechargeOrders(int page, int size, String status) {
+    public PageResult<Map<String, Object>> getRechargeOrders(int page, int size, String status, String keyword) {
+        // 如果有关键词，先查匹配的用户ID
+        Set<Long> matchedUserIds = null;
+        if (keyword != null && !keyword.isEmpty()) {
+            List<User> matchedUsers = userMapper.selectList(
+                    new LambdaQueryWrapper<User>()
+                            .like(User::getNickname, keyword)
+                            .or().like(User::getUsername, keyword)
+            );
+            matchedUserIds = matchedUsers.stream().map(User::getId).collect(Collectors.toSet());
+        }
+
         LambdaQueryWrapper<RechargeOrder> wrapper = new LambdaQueryWrapper<RechargeOrder>()
-                .eq(status != null && !status.isEmpty(), RechargeOrder::getStatus, status)
-                .orderByDesc(RechargeOrder::getCreatedAt);
+                .eq(status != null && !status.isEmpty(), RechargeOrder::getStatus, status);
+        if (keyword != null && !keyword.isEmpty()) {
+            Set<Long> finalMatchedUserIds = matchedUserIds;
+            wrapper.and(w -> {
+                w.like(RechargeOrder::getOrderNo, keyword)
+                 .or().like(RechargeOrder::getPaymentProof, keyword);
+                if (finalMatchedUserIds != null && !finalMatchedUserIds.isEmpty()) {
+                    w.or().in(RechargeOrder::getUserId, finalMatchedUserIds);
+                }
+            });
+        }
+        wrapper.orderByDesc(RechargeOrder::getCreatedAt);
         Page<RechargeOrder> p = rechargeOrderMapper.selectPage(new Page<>(page, size), wrapper);
 
         // 批量获取用户
@@ -252,6 +305,9 @@ public class AdminService {
             item.put("amount", o.getAmount());
             item.put("remark", o.getRemark());
             item.put("status", o.getStatus());
+            item.put("paymentMethod", o.getPaymentMethod());
+            item.put("paymentProof", o.getPaymentProof());
+            item.put("paymentImage", o.getPaymentImage());
             item.put("rejectReason", o.getRejectReason());
             item.put("createdAt", o.getCreatedAt());
             User u = userMap.get(o.getUserId());
@@ -372,6 +428,8 @@ public class AdminService {
             item.put("createdAt", o.getCreatedAt());
             item.put("shippedAt", o.getShippedAt());
             item.put("doneAt", o.getDoneAt());
+            item.put("expressCompany", o.getExpressCompany());
+            item.put("expressNo", o.getExpressNo());
             User u = userMap.get(o.getUserId());
             if (u != null) {
                 item.put("user", Map.of("id", u.getId(), "nickname", u.getNickname()));
@@ -386,12 +444,14 @@ public class AdminService {
         return PageResult.of(list, p.getTotal());
     }
 
-    public void shipOrder(Long id) {
+    public void shipOrder(Long id, String expressCompany, String expressNo) {
         DeliveryOrder order = deliveryOrderMapper.selectById(id);
         if (order == null || !"pending".equals(order.getStatus())) {
             throw new BusinessException("订单不存在或状态异常");
         }
         order.setStatus("shipped");
+        order.setExpressCompany(expressCompany);
+        order.setExpressNo(expressNo);
         order.setShippedAt(LocalDateTime.now());
         deliveryOrderMapper.updateById(order);
     }
@@ -480,6 +540,222 @@ public class AdminService {
         }).collect(Collectors.toList());
 
         return PageResult.of(list, p.getTotal());
+    }
+
+    // ==================== 售后管理 ====================
+
+    public PageResult<Map<String, Object>> getAfterSales(String status, int page, int size) {
+        LambdaQueryWrapper<AfterSale> wrapper = new LambdaQueryWrapper<AfterSale>()
+                .eq(status != null && !status.isEmpty(), AfterSale::getStatus, status)
+                .orderByDesc(AfterSale::getCreatedAt);
+        Page<AfterSale> p = afterSaleMapper.selectPage(new Page<>(page, size), wrapper);
+
+        Set<Long> doIds = p.getRecords().stream().map(AfterSale::getDeliveryOrderId).collect(Collectors.toSet());
+        Set<Long> userIds = p.getRecords().stream().map(AfterSale::getUserId).collect(Collectors.toSet());
+        Map<Long, DeliveryOrder> doMap = doIds.isEmpty() ? Collections.emptyMap() :
+                deliveryOrderMapper.selectBatchIds(doIds).stream().collect(Collectors.toMap(DeliveryOrder::getId, d -> d));
+        Map<Long, User> userMap = userIds.isEmpty() ? Collections.emptyMap() :
+                userMapper.selectBatchIds(userIds).stream().collect(Collectors.toMap(User::getId, u -> u));
+        Set<Long> whIds = doMap.values().stream().map(DeliveryOrder::getWarehouseId).collect(Collectors.toSet());
+        Map<Long, Warehouse> whMap = whIds.isEmpty() ? Collections.emptyMap() :
+                warehouseMapper.selectBatchIds(whIds).stream().collect(Collectors.toMap(Warehouse::getId, w -> w));
+        Set<Long> prizeIds = whMap.values().stream().map(Warehouse::getPrizeId).collect(Collectors.toSet());
+        Map<Long, Prize> prizeMap = prizeIds.isEmpty() ? Collections.emptyMap() :
+                prizeMapper.selectBatchIds(prizeIds).stream().collect(Collectors.toMap(Prize::getId, pr -> pr));
+
+        List<Map<String, Object>> list = p.getRecords().stream().map(a -> {
+            Map<String, Object> item = new HashMap<>();
+            item.put("id", a.getId());
+            item.put("orderNo", a.getOrderNo());
+            item.put("type", a.getType());
+            item.put("reason", a.getReason());
+            item.put("status", a.getStatus());
+            item.put("rejectReason", a.getRejectReason());
+            item.put("createdAt", a.getCreatedAt());
+            User u = userMap.get(a.getUserId());
+            if (u != null) {
+                item.put("user", Map.of("id", u.getId(), "nickname", u.getNickname()));
+            }
+            DeliveryOrder dOrder = doMap.get(a.getDeliveryOrderId());
+            if (dOrder != null) {
+                item.put("deliveryOrderNo", dOrder.getOrderNo());
+                Warehouse wh = whMap.get(dOrder.getWarehouseId());
+                if (wh != null) {
+                    item.put("prize", prizeMap.get(wh.getPrizeId()));
+                }
+            }
+            return item;
+        }).collect(Collectors.toList());
+
+        return PageResult.of(list, p.getTotal());
+    }
+
+    public void approveAfterSale(Long id, Long operatorId) {
+        AfterSale afterSale = afterSaleMapper.selectById(id);
+        if (afterSale == null || !"pending".equals(afterSale.getStatus())) {
+            throw new BusinessException("售后单不存在或已处理");
+        }
+        afterSale.setStatus("approved");
+        afterSale.setOperatorId(operatorId);
+        afterSaleMapper.updateById(afterSale);
+    }
+
+    public void rejectAfterSale(Long id, Long operatorId, String reason) {
+        AfterSale afterSale = afterSaleMapper.selectById(id);
+        if (afterSale == null || !"pending".equals(afterSale.getStatus())) {
+            throw new BusinessException("售后单不存在或已处理");
+        }
+        afterSale.setStatus("rejected");
+        afterSale.setRejectReason(reason);
+        afterSale.setOperatorId(operatorId);
+        afterSaleMapper.updateById(afterSale);
+    }
+
+    public void completeAfterSale(Long id, Long operatorId) {
+        AfterSale afterSale = afterSaleMapper.selectById(id);
+        if (afterSale == null || !"approved".equals(afterSale.getStatus())) {
+            throw new BusinessException("售后单不存在或状态异常");
+        }
+        afterSale.setStatus("done");
+        afterSale.setOperatorId(operatorId);
+        afterSaleMapper.updateById(afterSale);
+    }
+
+    // ==================== 支付配置 ====================
+
+    public Map<String, Object> getPaymentConfig() {
+        Map<String, Object> config = new HashMap<>();
+        SystemConfig taobaoLink = systemConfigMapper.selectById("taobao_link");
+        SystemConfig paymentNotice = systemConfigMapper.selectById("payment_notice");
+        config.put("taobaoLink", taobaoLink != null ? taobaoLink.getConfigValue() : "");
+        config.put("paymentNotice", paymentNotice != null ? paymentNotice.getConfigValue() : "");
+        return config;
+    }
+
+    public void savePaymentConfig(String taobaoLink, String paymentNotice) {
+        saveConfig("taobao_link", taobaoLink);
+        saveConfig("payment_notice", paymentNotice);
+    }
+
+    private void saveConfig(String key, String value) {
+        SystemConfig config = systemConfigMapper.selectById(key);
+        if (config == null) {
+            config = new SystemConfig();
+            config.setConfigKey(key);
+            config.setConfigValue(value);
+            systemConfigMapper.insert(config);
+        } else {
+            config.setConfigValue(value);
+            systemConfigMapper.updateById(config);
+        }
+    }
+
+    // ==================== 导出 ====================
+
+    private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    public byte[] exportRechargeOrders(String status) {
+        LambdaQueryWrapper<RechargeOrder> wrapper = new LambdaQueryWrapper<RechargeOrder>()
+                .eq(status != null && !status.isEmpty(), RechargeOrder::getStatus, status)
+                .orderByDesc(RechargeOrder::getCreatedAt);
+        List<RechargeOrder> orders = rechargeOrderMapper.selectList(wrapper);
+
+        Set<Long> userIds = orders.stream().map(RechargeOrder::getUserId).collect(Collectors.toSet());
+        Map<Long, User> userMap = userIds.isEmpty() ? Collections.emptyMap() :
+                userMapper.selectBatchIds(userIds).stream().collect(Collectors.toMap(User::getId, u -> u));
+
+        try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = wb.createSheet("充值订单");
+            String[] headers = {"订单号", "用户", "代币", "金额", "支付方式", "支付凭证", "状态", "备注", "时间"};
+            Row header = sheet.createRow(0);
+            for (int i = 0; i < headers.length; i++) header.createCell(i).setCellValue(headers[i]);
+
+            for (int i = 0; i < orders.size(); i++) {
+                RechargeOrder o = orders.get(i);
+                Row row = sheet.createRow(i + 1);
+                row.createCell(0).setCellValue(o.getOrderNo());
+                User u = userMap.get(o.getUserId());
+                row.createCell(1).setCellValue(u != null ? u.getNickname() : "");
+                row.createCell(2).setCellValue(o.getTokens());
+                row.createCell(3).setCellValue(o.getAmount() != null ? o.getAmount() : 0);
+                row.createCell(4).setCellValue(o.getPaymentMethod() != null ? o.getPaymentMethod() : "");
+                row.createCell(5).setCellValue(o.getPaymentProof() != null ? o.getPaymentProof() : "");
+                row.createCell(6).setCellValue(statusLabel(o.getStatus()));
+                row.createCell(7).setCellValue(o.getRemark() != null ? o.getRemark() : "");
+                row.createCell(8).setCellValue(o.getCreatedAt() != null ? o.getCreatedAt().format(FMT) : "");
+            }
+            wb.write(out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new BusinessException("导出失败");
+        }
+    }
+
+    public byte[] exportDeliveryOrders(String status) {
+        LambdaQueryWrapper<DeliveryOrder> wrapper = new LambdaQueryWrapper<DeliveryOrder>()
+                .eq(status != null && !status.isEmpty(), DeliveryOrder::getStatus, status)
+                .orderByDesc(DeliveryOrder::getCreatedAt);
+        List<DeliveryOrder> orders = deliveryOrderMapper.selectList(wrapper);
+
+        Set<Long> userIds = orders.stream().map(DeliveryOrder::getUserId).collect(Collectors.toSet());
+        Set<Long> whIds = orders.stream().map(DeliveryOrder::getWarehouseId).collect(Collectors.toSet());
+        Map<Long, User> userMap = userIds.isEmpty() ? Collections.emptyMap() :
+                userMapper.selectBatchIds(userIds).stream().collect(Collectors.toMap(User::getId, u -> u));
+        Map<Long, Warehouse> whMap = whIds.isEmpty() ? Collections.emptyMap() :
+                warehouseMapper.selectBatchIds(whIds).stream().collect(Collectors.toMap(Warehouse::getId, w -> w));
+        Set<Long> prizeIds = whMap.values().stream().map(Warehouse::getPrizeId).collect(Collectors.toSet());
+        Map<Long, Prize> prizeMap = prizeIds.isEmpty() ? Collections.emptyMap() :
+                prizeMapper.selectBatchIds(prizeIds).stream().collect(Collectors.toMap(Prize::getId, pr -> pr));
+
+        try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = wb.createSheet("发货订单");
+            String[] headers = {"订单号", "用户", "奖品", "收件人", "手机号", "地址", "快递公司", "快递单号", "状态", "创建时间"};
+            Row header = sheet.createRow(0);
+            for (int i = 0; i < headers.length; i++) header.createCell(i).setCellValue(headers[i]);
+
+            for (int i = 0; i < orders.size(); i++) {
+                DeliveryOrder o = orders.get(i);
+                Row row = sheet.createRow(i + 1);
+                row.createCell(0).setCellValue(o.getOrderNo());
+                User u = userMap.get(o.getUserId());
+                row.createCell(1).setCellValue(u != null ? u.getNickname() : "");
+                Warehouse wh = whMap.get(o.getWarehouseId());
+                Prize prize = wh != null ? prizeMap.get(wh.getPrizeId()) : null;
+                row.createCell(2).setCellValue(prize != null ? prize.getName() : "");
+                row.createCell(3).setCellValue(o.getReceiverName() != null ? o.getReceiverName() : "");
+                row.createCell(4).setCellValue(o.getReceiverPhone() != null ? o.getReceiverPhone() : "");
+                row.createCell(5).setCellValue(o.getReceiverAddress() != null ? o.getReceiverAddress() : "");
+                row.createCell(6).setCellValue(o.getExpressCompany() != null ? o.getExpressCompany() : "");
+                row.createCell(7).setCellValue(o.getExpressNo() != null ? o.getExpressNo() : "");
+                row.createCell(8).setCellValue(deliveryStatusLabel(o.getStatus()));
+                row.createCell(9).setCellValue(o.getCreatedAt() != null ? o.getCreatedAt().format(FMT) : "");
+            }
+            wb.write(out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new BusinessException("导出失败");
+        }
+    }
+
+    private String statusLabel(String s) {
+        if (s == null) return "";
+        return switch (s) {
+            case "unpaid" -> "待支付";
+            case "pending" -> "待审核";
+            case "done" -> "已确认";
+            case "rejected" -> "已驳回";
+            default -> s;
+        };
+    }
+
+    private String deliveryStatusLabel(String s) {
+        if (s == null) return "";
+        return switch (s) {
+            case "pending" -> "待发货";
+            case "shipped" -> "已发货";
+            case "done" -> "已完成";
+            default -> s;
+        };
     }
 
     @Transactional

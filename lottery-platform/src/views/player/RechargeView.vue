@@ -66,9 +66,22 @@
                   <span>{{ order.tokens }} 代币</span>
                   <span class="order-amount">¥{{ order.amount }}</span>
                 </div>
+                <div v-if="order.paymentMethod" class="order-remark">支付方式：{{ paymentMethodText(order.paymentMethod) }}</div>
+                <div v-if="order.paymentProof" class="order-remark">支付凭证：{{ order.paymentProof }}</div>
                 <div v-if="order.remark" class="order-remark">备注：{{ order.remark }}</div>
                 <div v-if="order.rejectReason" class="order-remark red">驳回原因：{{ order.rejectReason }}</div>
                 <div class="order-time">{{ order.createdAt }}</div>
+                <!-- 待支付订单显示去支付按钮 -->
+                <van-button
+                  v-if="order.status === 'unpaid'"
+                  type="warning"
+                  size="small"
+                  round
+                  class="pay-btn"
+                  @click="openPayDialog(order)"
+                >
+                  去支付
+                </van-button>
               </div>
               <van-empty v-if="!list.length && !refreshing" description="暂无充值记录" />
             </div>
@@ -76,13 +89,75 @@
         </div>
       </van-tab>
     </van-tabs>
+
+    <!-- 支付引导弹窗 -->
+    <van-dialog
+      v-model:show="payDialogVisible"
+      title="确认付款"
+      :show-confirm-button="false"
+      close-on-click-overlay
+    >
+      <div class="pay-dialog-body">
+        <div v-if="paymentConfig.paymentNotice" class="pay-notice">{{ paymentConfig.paymentNotice }}</div>
+
+        <div class="pay-methods">
+          <div
+            :class="['pay-method', payForm.paymentMethod === 'taobao' && 'active']"
+            @click="payForm.paymentMethod = 'taobao'"
+          >
+            淘宝支付
+          </div>
+          <div
+            :class="['pay-method', payForm.paymentMethod === 'manual' && 'active']"
+            @click="payForm.paymentMethod = 'manual'"
+          >
+            手动转账
+          </div>
+        </div>
+
+        <div v-if="payForm.paymentMethod === 'taobao' && paymentConfig.taobaoLink" style="margin: 12px 0;">
+          <van-button type="primary" size="small" block @click="openTaobao">打开淘宝商品链接</van-button>
+        </div>
+
+        <van-field
+          v-model="payForm.paymentProof"
+          :placeholder="payForm.paymentMethod === 'taobao' ? '请输入淘宝订单号' : '请输入转账凭证/备注'"
+          class="proof-input"
+        />
+
+        <!-- 上传支付截图 -->
+        <div class="upload-section">
+          <div class="upload-label">上传支付截图（选填）</div>
+          <van-uploader
+            v-model="payForm.fileList"
+            :max-count="1"
+            :after-read="onUploadRead"
+            accept="image/*"
+            :preview-size="80"
+          />
+        </div>
+
+        <van-button
+          type="warning"
+          block
+          round
+          :loading="paySubmitting"
+          :disabled="!payForm.paymentProof && !payForm.proofImage"
+          style="margin-top: 12px;"
+          @click="handleConfirmPay"
+        >
+          我已付款
+        </van-button>
+      </div>
+    </van-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, reactive } from 'vue'
 import { showSuccessToast, showFailToast } from 'vant'
 import { playerApi } from '@/api'
+import request from '@/api/request'
 
 const activeTab = ref(0)
 
@@ -115,7 +190,7 @@ async function handleSubmit() {
   if (!form.value.tokens || form.value.tokens <= 0) return
   submitting.value = true
   try {
-    await playerApi.submitRecharge({
+    const res = await playerApi.submitRecharge({
       tokens: form.value.tokens,
       amount: form.value.amount,
       remark: form.value.remark || undefined,
@@ -123,7 +198,12 @@ async function handleSubmit() {
     showSuccessToast('申请已提交')
     form.value = { tokens: 0, amount: 0, remark: '' }
     customTokens.value = ''
-    loadData()
+    // 切到记录tab并刷新
+    activeTab.value = 1
+    await loadData()
+    // 自动弹出支付弹窗
+    const newOrder = list.value.find(o => o.id === res.data.orderId)
+    if (newOrder) openPayDialog(newOrder)
   } catch (e) {
     showFailToast(e.message || '提交失败')
   } finally {
@@ -135,10 +215,11 @@ async function handleSubmit() {
 const list = ref([])
 const refreshing = ref(false)
 
-const pendingCount = computed(() => list.value.filter(o => o.status === 'pending').length)
+const pendingCount = computed(() => list.value.filter(o => o.status === 'unpaid' || o.status === 'pending').length)
 
-function statusType(s) { return { pending: 'warning', done: 'success', rejected: 'danger' }[s] || 'default' }
-function statusText(s) { return { pending: '待确认', done: '已到账', rejected: '已驳回' }[s] || s }
+function statusType(s) { return { unpaid: 'default', pending: 'warning', done: 'success', rejected: 'danger' }[s] || 'default' }
+function statusText(s) { return { unpaid: '待支付', pending: '待确认', done: '已到账', rejected: '已驳回' }[s] || s }
+function paymentMethodText(m) { return { taobao: '淘宝支付', manual: '手动转账' }[m] || m }
 
 function onTabChange(index) {
   if (index === 1) loadData()
@@ -153,7 +234,78 @@ async function loadData() {
   } finally { refreshing.value = false }
 }
 
-onMounted(loadData)
+// ========== 支付引导 ==========
+const payDialogVisible = ref(false)
+const paySubmitting = ref(false)
+const currentPayOrder = ref(null)
+const payForm = reactive({ paymentMethod: 'taobao', paymentProof: '', proofImage: '', fileList: [] })
+const paymentConfig = reactive({ taobaoLink: '', paymentNotice: '' })
+
+async function loadPaymentConfig() {
+  try {
+    const res = await playerApi.getPaymentConfig()
+    paymentConfig.taobaoLink = res.data.taobaoLink || ''
+    paymentConfig.paymentNotice = res.data.paymentNotice || ''
+  } catch (e) { /* ignore */ }
+}
+
+function openPayDialog(order) {
+  currentPayOrder.value = order
+  payForm.paymentMethod = 'taobao'
+  payForm.paymentProof = ''
+  payForm.proofImage = ''
+  payForm.fileList = []
+  payDialogVisible.value = true
+}
+
+async function onUploadRead(file) {
+  file.status = 'uploading'
+  file.message = '上传中...'
+  try {
+    const formData = new FormData()
+    formData.append('file', file.file)
+    const res = await request.post('/upload/image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    payForm.proofImage = res.data.url
+    file.status = 'done'
+    file.message = ''
+  } catch (e) {
+    file.status = 'failed'
+    file.message = '上传失败'
+    showFailToast('图片上传失败')
+  }
+}
+
+function openTaobao() {
+  if (paymentConfig.taobaoLink) {
+    window.open(paymentConfig.taobaoLink, '_blank')
+  }
+}
+
+async function handleConfirmPay() {
+  if (!payForm.paymentProof && !payForm.proofImage) return
+  paySubmitting.value = true
+  try {
+    await playerApi.confirmPayment(currentPayOrder.value.id, {
+      paymentMethod: payForm.paymentMethod,
+      paymentProof: payForm.paymentProof || undefined,
+      paymentImage: payForm.proofImage || undefined,
+    })
+    showSuccessToast('已提交付款确认')
+    payDialogVisible.value = false
+    loadData()
+  } catch (e) {
+    showFailToast(e.message || '操作失败')
+  } finally {
+    paySubmitting.value = false
+  }
+}
+
+onMounted(() => {
+  loadData()
+  loadPaymentConfig()
+})
 </script>
 
 <style scoped>
@@ -268,4 +420,17 @@ onMounted(loadData)
 .order-remark { font-size: 12px; color: #888; margin-top: 6px; }
 .order-remark.red { color: #e55; }
 .order-time { font-size: 12px; color: #444; margin-top: 6px; }
+.pay-btn { margin-top: 10px; }
+
+/* 支付弹窗 */
+.pay-dialog-body { padding: 16px; color: #333; }
+.pay-notice { font-size: 13px; color: #e88; background: #fff5f5; padding: 10px; border-radius: 6px; margin-bottom: 12px; }
+.pay-methods { display: flex; gap: 10px; margin-bottom: 12px; }
+.pay-method {
+  flex: 1; text-align: center; padding: 10px; border: 2px solid #eee; border-radius: 8px; cursor: pointer; font-size: 14px;
+}
+.pay-method.active { border-color: #f0c040; background: rgba(240,192,64,0.08); color: #f0c040; font-weight: 600; }
+.proof-input { border: 1px solid #eee; border-radius: 8px; }
+.upload-section { margin-top: 12px; }
+.upload-label { font-size: 13px; color: #888; margin-bottom: 6px; }
 </style>

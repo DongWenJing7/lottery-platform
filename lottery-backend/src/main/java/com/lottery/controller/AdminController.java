@@ -12,6 +12,9 @@ import com.lottery.service.AdminService;
 import com.lottery.util.RandomUtil;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
@@ -143,8 +146,9 @@ public class AdminController {
     @GetMapping("/recharge")
     public Result<?> getRechargeOrders(@RequestParam(defaultValue = "1") int page,
                                        @RequestParam(defaultValue = "20") int size,
-                                       @RequestParam(required = false) String status) {
-        return Result.success(adminService.getRechargeOrders(page, size, status));
+                                       @RequestParam(required = false) String status,
+                                       @RequestParam(required = false) String keyword) {
+        return Result.success(adminService.getRechargeOrders(page, size, status, keyword));
     }
 
     @PostMapping("/recharge/{id}/confirm")
@@ -170,8 +174,10 @@ public class AdminController {
     }
 
     @PostMapping("/orders/{id}/ship")
-    public Result<?> shipOrder(@PathVariable Long id) {
-        adminService.shipOrder(id);
+    public Result<?> shipOrder(@PathVariable Long id, @RequestBody(required = false) ShipDTO dto) {
+        adminService.shipOrder(id,
+                dto != null ? dto.getExpressCompany() : null,
+                dto != null ? dto.getExpressNo() : null);
         return Result.success();
     }
 
@@ -204,6 +210,69 @@ public class AdminController {
         return Result.success();
     }
 
+    // ==================== 售后管理 ====================
+
+    @GetMapping("/after-sale")
+    public Result<?> getAfterSales(@RequestParam(defaultValue = "1") int page,
+                                    @RequestParam(defaultValue = "20") int size,
+                                    @RequestParam(required = false) String status) {
+        return Result.success(adminService.getAfterSales(status, page, size));
+    }
+
+    @PostMapping("/after-sale/{id}/approve")
+    public Result<?> approveAfterSale(@PathVariable Long id) {
+        Long operatorId = AuthInterceptor.CURRENT_USER_ID.get();
+        adminService.approveAfterSale(id, operatorId);
+        return Result.success();
+    }
+
+    @PostMapping("/after-sale/{id}/reject")
+    public Result<?> rejectAfterSale(@PathVariable Long id, @RequestBody RejectDTO dto) {
+        Long operatorId = AuthInterceptor.CURRENT_USER_ID.get();
+        adminService.rejectAfterSale(id, operatorId, dto.getReason());
+        return Result.success();
+    }
+
+    @PostMapping("/after-sale/{id}/done")
+    public Result<?> completeAfterSale(@PathVariable Long id) {
+        Long operatorId = AuthInterceptor.CURRENT_USER_ID.get();
+        adminService.completeAfterSale(id, operatorId);
+        return Result.success();
+    }
+
+    // ==================== 支付配置 ====================
+
+    @GetMapping("/config/payment")
+    public Result<?> getPaymentConfig() {
+        return Result.success(adminService.getPaymentConfig());
+    }
+
+    @PostMapping("/config/payment")
+    public Result<?> savePaymentConfig(@RequestBody PaymentConfigDTO dto) {
+        adminService.savePaymentConfig(dto.getTaobaoLink(), dto.getPaymentNotice());
+        return Result.success();
+    }
+
+    // ==================== 导出 ====================
+
+    @GetMapping("/recharge/export")
+    public ResponseEntity<byte[]> exportRechargeOrders(@RequestParam(required = false) String status) {
+        byte[] data = adminService.exportRechargeOrders(status);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=recharge_orders.xlsx")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(data);
+    }
+
+    @GetMapping("/orders/export")
+    public ResponseEntity<byte[]> exportDeliveryOrders(@RequestParam(required = false) String status) {
+        byte[] data = adminService.exportDeliveryOrders(status);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=delivery_orders.xlsx")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(data);
+    }
+
     // ==================== DTO ====================
 
     @Data
@@ -233,6 +302,18 @@ public class AdminController {
     @Data
     static class RejectDTO {
         private String reason;
+    }
+
+    @Data
+    static class ShipDTO {
+        private String expressCompany;
+        private String expressNo;
+    }
+
+    @Data
+    static class PaymentConfigDTO {
+        private String taobaoLink;
+        private String paymentNotice;
     }
 
     private String generateUniqueInviteCode() {

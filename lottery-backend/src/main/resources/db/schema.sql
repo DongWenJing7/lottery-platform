@@ -38,7 +38,9 @@ CREATE TABLE `recharge_order` (
   `tokens` int NOT NULL COMMENT '充值代币数',
   `amount` decimal(10,2) NOT NULL COMMENT '实际金额',
   `remark` varchar(100) COMMENT '付款人备注',
-  `status` enum('pending','done','rejected') DEFAULT 'pending',
+  `status` enum('unpaid','pending','done','rejected') DEFAULT 'unpaid',
+  `payment_method` varchar(20) DEFAULT NULL COMMENT '支付方式: taobao/manual',
+  `payment_proof` varchar(500) DEFAULT NULL COMMENT '支付凭证(淘宝订单号等)',
   `reject_reason` varchar(200),
   `operator_id` bigint COMMENT '操作管理员ID',
   `created_at` datetime DEFAULT NOW(),
@@ -123,10 +125,36 @@ CREATE TABLE `delivery_order` (
   `receiver_phone` varchar(20),
   `receiver_address` varchar(200),
   `status` enum('pending','shipped','done') DEFAULT 'pending',
+  `express_company` varchar(50) DEFAULT NULL COMMENT '快递公司',
+  `express_no` varchar(50) DEFAULT NULL COMMENT '快递单号',
   `created_at` datetime DEFAULT NOW(),
   `shipped_at` datetime,
   `done_at` datetime
 ) COMMENT '发货订单表';
+
+-- 系统配置表（键值对）
+CREATE TABLE `system_config` (
+  `config_key` varchar(50) PRIMARY KEY,
+  `config_value` text
+) COMMENT '系统配置表';
+
+INSERT INTO `system_config` VALUES ('taobao_link', '');
+INSERT INTO `system_config` VALUES ('payment_notice', '请在淘宝下单后将订单号填写到充值页面');
+
+-- 售后表
+CREATE TABLE `after_sale` (
+  `id` bigint PRIMARY KEY AUTO_INCREMENT,
+  `order_no` varchar(32) NOT NULL COMMENT '售后单号',
+  `delivery_order_id` bigint NOT NULL COMMENT '关联发货订单',
+  `user_id` bigint NOT NULL,
+  `type` enum('refund','exchange') DEFAULT 'refund' COMMENT '退款/换货',
+  `reason` varchar(500) NOT NULL COMMENT '申请原因',
+  `status` enum('pending','approved','rejected','done') DEFAULT 'pending',
+  `reject_reason` varchar(200) DEFAULT NULL,
+  `operator_id` bigint DEFAULT NULL,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB CHARSET=utf8mb4 COMMENT '售后表';
 
 -- 默认管理员账号（密码: admin123，BCrypt加密后替换）
 INSERT INTO `user` (username, password, nickname, role)

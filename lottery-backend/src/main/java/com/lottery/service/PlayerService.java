@@ -7,6 +7,7 @@ import com.lottery.common.exception.BusinessException;
 import com.lottery.entity.*;
 import com.lottery.mapper.*;
 import lombok.RequiredArgsConstructor;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,9 @@ public class PlayerService {
     private final PrizeMapper prizeMapper;
     private final MarketMapper marketMapper;
     private final DeliveryOrderMapper deliveryOrderMapper;
+    private final AfterSaleMapper afterSaleMapper;
+    private final LotteryConfigMapper lotteryConfigMapper;
+    private final SystemConfigMapper systemConfigMapper;
     private final BCryptPasswordEncoder passwordEncoder;
 
     // ==================== 个人信息 ====================
@@ -115,13 +119,30 @@ public class PlayerService {
         order.setTokens(tokens);
         order.setAmount(amount);
         order.setRemark(remark);
-        order.setStatus("pending");
+        order.setStatus("unpaid");
         rechargeOrderMapper.insert(order);
 
         Map<String, Object> result = new HashMap<>();
         result.put("orderId", order.getId());
         result.put("orderNo", order.getOrderNo());
         return result;
+    }
+
+    // ==================== 确认付款 ====================
+
+    public void confirmPayment(Long userId, Long orderId, String paymentMethod, String paymentProof, String paymentImage) {
+        RechargeOrder order = rechargeOrderMapper.selectById(orderId);
+        if (order == null || !order.getUserId().equals(userId)) {
+            throw new BusinessException("订单不存在");
+        }
+        if (!"unpaid".equals(order.getStatus())) {
+            throw new BusinessException("订单状态异常");
+        }
+        order.setStatus("pending");
+        order.setPaymentMethod(paymentMethod);
+        order.setPaymentProof(paymentProof);
+        order.setPaymentImage(paymentImage);
+        rechargeOrderMapper.updateById(order);
     }
 
     // ==================== 仓库 ====================
@@ -408,6 +429,8 @@ public class PlayerService {
             item.put("createdAt", o.getCreatedAt());
             item.put("shippedAt", o.getShippedAt());
             item.put("doneAt", o.getDoneAt());
+            item.put("expressCompany", o.getExpressCompany());
+            item.put("expressNo", o.getExpressNo());
             Warehouse wh = warehouseMap.get(o.getWarehouseId());
             if (wh != null) {
                 item.put("prize", prizeMap.get(wh.getPrizeId()));
@@ -416,6 +439,92 @@ public class PlayerService {
         }).collect(Collectors.toList());
 
         return PageResult.of(list, p.getTotal());
+    }
+
+    // ==================== 售后 ====================
+
+    @Transactional
+    public Map<String, Object> submitAfterSale(Long userId, Long deliveryOrderId, String type, String reason) {
+        DeliveryOrder order = deliveryOrderMapper.selectById(deliveryOrderId);
+        if (order == null || !order.getUserId().equals(userId)) {
+            throw new BusinessException("订单不存在");
+        }
+        if (!"shipped".equals(order.getStatus()) && !"done".equals(order.getStatus())) {
+            throw new BusinessException("当前订单状态不可申请售后");
+        }
+        // 检查是否已有进行中的售后
+        Long existCount = afterSaleMapper.selectCount(
+                new LambdaQueryWrapper<AfterSale>()
+                        .eq(AfterSale::getDeliveryOrderId, deliveryOrderId)
+                        .in(AfterSale::getStatus, "pending", "approved")
+        );
+        if (existCount > 0) {
+            throw new BusinessException("该订单已有进行中的售后申请");
+        }
+        AfterSale afterSale = new AfterSale();
+        afterSale.setOrderNo(generateOrderNo("AS"));
+        afterSale.setDeliveryOrderId(deliveryOrderId);
+        afterSale.setUserId(userId);
+        afterSale.setType(type);
+        afterSale.setReason(reason);
+        afterSale.setStatus("pending");
+        afterSaleMapper.insert(afterSale);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", afterSale.getId());
+        result.put("orderNo", afterSale.getOrderNo());
+        return result;
+    }
+
+    public PageResult<Map<String, Object>> getAfterSales(Long userId, int page, int size) {
+        LambdaQueryWrapper<AfterSale> wrapper = new LambdaQueryWrapper<AfterSale>()
+                .eq(AfterSale::getUserId, userId)
+                .orderByDesc(AfterSale::getCreatedAt);
+        Page<AfterSale> p = afterSaleMapper.selectPage(new Page<>(page, size), wrapper);
+
+        // 批量获取发货订单 → 仓库 → 奖品
+        Set<Long> doIds = p.getRecords().stream().map(AfterSale::getDeliveryOrderId).collect(Collectors.toSet());
+        Map<Long, DeliveryOrder> doMap = doIds.isEmpty() ? Collections.emptyMap() :
+                deliveryOrderMapper.selectBatchIds(doIds).stream().collect(Collectors.toMap(DeliveryOrder::getId, d -> d));
+        Set<Long> whIds = doMap.values().stream().map(DeliveryOrder::getWarehouseId).collect(Collectors.toSet());
+        Map<Long, Warehouse> whMap = whIds.isEmpty() ? Collections.emptyMap() :
+                warehouseMapper.selectBatchIds(whIds).stream().collect(Collectors.toMap(Warehouse::getId, w -> w));
+        Set<Long> prizeIds = whMap.values().stream().map(Warehouse::getPrizeId).collect(Collectors.toSet());
+        Map<Long, Prize> prizeMap = prizeIds.isEmpty() ? Collections.emptyMap() :
+                prizeMapper.selectBatchIds(prizeIds).stream().collect(Collectors.toMap(Prize::getId, pr -> pr));
+
+        List<Map<String, Object>> list = p.getRecords().stream().map(a -> {
+            Map<String, Object> item = new HashMap<>();
+            item.put("id", a.getId());
+            item.put("orderNo", a.getOrderNo());
+            item.put("type", a.getType());
+            item.put("reason", a.getReason());
+            item.put("status", a.getStatus());
+            item.put("rejectReason", a.getRejectReason());
+            item.put("createdAt", a.getCreatedAt());
+            DeliveryOrder dOrder = doMap.get(a.getDeliveryOrderId());
+            if (dOrder != null) {
+                item.put("deliveryOrderNo", dOrder.getOrderNo());
+                Warehouse wh = whMap.get(dOrder.getWarehouseId());
+                if (wh != null) {
+                    item.put("prize", prizeMap.get(wh.getPrizeId()));
+                }
+            }
+            return item;
+        }).collect(Collectors.toList());
+
+        return PageResult.of(list, p.getTotal());
+    }
+
+    // ==================== 支付配置 ====================
+
+    public Map<String, Object> getPaymentConfig() {
+        Map<String, Object> config = new HashMap<>();
+        SystemConfig taobaoLink = systemConfigMapper.selectById("taobao_link");
+        SystemConfig paymentNotice = systemConfigMapper.selectById("payment_notice");
+        config.put("taobaoLink", taobaoLink != null ? taobaoLink.getConfigValue() : "");
+        config.put("paymentNotice", paymentNotice != null ? paymentNotice.getConfigValue() : "");
+        return config;
     }
 
     // ==================== 工具 ====================

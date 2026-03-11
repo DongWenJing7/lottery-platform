@@ -14,6 +14,8 @@ public class DeliveryOrder {
     private String receiverPhone;
     private String receiverAddress;
     private String status;    // pending / shipped / done
+    private String expressCompany;
+    private String expressNo;
     private LocalDateTime createdAt;
     private LocalDateTime shippedAt;
     private LocalDateTime doneAt;
@@ -34,6 +36,10 @@ public class DeliveryOrder {
     public void setReceiverAddress(String receiverAddress) { this.receiverAddress = receiverAddress; }
     public String getStatus() { return this.status; }
     public void setStatus(String status) { this.status = status; }
+    public String getExpressCompany() { return this.expressCompany; }
+    public void setExpressCompany(String expressCompany) { this.expressCompany = expressCompany; }
+    public String getExpressNo() { return this.expressNo; }
+    public void setExpressNo(String expressNo) { this.expressNo = expressNo; }
     public LocalDateTime getCreatedAt() { return this.createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getShippedAt() { return this.shippedAt; }

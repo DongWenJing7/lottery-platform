@@ -3,19 +3,16 @@ package com.lottery.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import java.time.LocalDateTime;
 
-@TableName("recharge_order")
-public class RechargeOrder {
+@TableName("after_sale")
+public class AfterSale {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String orderNo;
+    private Long deliveryOrderId;
     private Long userId;
-    private Integer tokens;
-    private Double amount;
-    private String remark;
-    private String status;    // unpaid / pending / done / rejected
-    private String paymentMethod;  // taobao / manual
-    private String paymentProof;   // 支付凭证
-    private String paymentImage;   // 支付截图URL
+    private String type;       // refund / exchange
+    private String reason;
+    private String status;     // pending / approved / rejected / done
     private String rejectReason;
     private Long operatorId;
     private LocalDateTime createdAt;
@@ -25,22 +22,16 @@ public class RechargeOrder {
     public void setId(Long id) { this.id = id; }
     public String getOrderNo() { return this.orderNo; }
     public void setOrderNo(String orderNo) { this.orderNo = orderNo; }
+    public Long getDeliveryOrderId() { return this.deliveryOrderId; }
+    public void setDeliveryOrderId(Long deliveryOrderId) { this.deliveryOrderId = deliveryOrderId; }
     public Long getUserId() { return this.userId; }
     public void setUserId(Long userId) { this.userId = userId; }
-    public Integer getTokens() { return this.tokens; }
-    public void setTokens(Integer tokens) { this.tokens = tokens; }
-    public Double getAmount() { return this.amount; }
-    public void setAmount(Double amount) { this.amount = amount; }
-    public String getRemark() { return this.remark; }
-    public void setRemark(String remark) { this.remark = remark; }
+    public String getType() { return this.type; }
+    public void setType(String type) { this.type = type; }
+    public String getReason() { return this.reason; }
+    public void setReason(String reason) { this.reason = reason; }
     public String getStatus() { return this.status; }
     public void setStatus(String status) { this.status = status; }
-    public String getPaymentMethod() { return this.paymentMethod; }
-    public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
-    public String getPaymentProof() { return this.paymentProof; }
-    public void setPaymentProof(String paymentProof) { this.paymentProof = paymentProof; }
-    public String getPaymentImage() { return this.paymentImage; }
-    public void setPaymentImage(String paymentImage) { this.paymentImage = paymentImage; }
     public String getRejectReason() { return this.rejectReason; }
     public void setRejectReason(String rejectReason) { this.rejectReason = rejectReason; }
     public Long getOperatorId() { return this.operatorId; }

@@ -99,6 +99,51 @@ public class PlayerController {
         return Result.success(playerService.getOrders(userId, page, size, status));
     }
 
+    // ==================== 确认付款 ====================
+
+    @PostMapping("/recharge/{id}/pay")
+    public Result<?> confirmPayment(@PathVariable Long id, @RequestBody PaymentDTO dto) {
+        Long userId = AuthInterceptor.CURRENT_USER_ID.get();
+        playerService.confirmPayment(userId, id, dto.getPaymentMethod(), dto.getPaymentProof(), dto.getPaymentImage());
+        return Result.success();
+    }
+
+    // ==================== 支付配置 ====================
+
+    @GetMapping("/payment-config")
+    public Result<?> getPaymentConfig() {
+        return Result.success(playerService.getPaymentConfig());
+    }
+
+    // ==================== 售后 ====================
+
+    @PostMapping("/after-sale")
+    public Result<?> submitAfterSale(@RequestBody AfterSaleDTO dto) {
+        Long userId = AuthInterceptor.CURRENT_USER_ID.get();
+        return Result.success(playerService.submitAfterSale(userId, dto.getDeliveryOrderId(), dto.getType(), dto.getReason()));
+    }
+
+    @GetMapping("/after-sale")
+    public Result<?> getAfterSales(@RequestParam(defaultValue = "1") int page,
+                                    @RequestParam(defaultValue = "20") int size) {
+        Long userId = AuthInterceptor.CURRENT_USER_ID.get();
+        return Result.success(playerService.getAfterSales(userId, page, size));
+    }
+
+    @Data
+    static class PaymentDTO {
+        private String paymentMethod;
+        private String paymentProof;
+        private String paymentImage;
+    }
+
+    @Data
+    static class AfterSaleDTO {
+        private Long deliveryOrderId;
+        private String type;
+        private String reason;
+    }
+
     @Data
     static class RechargeDTO {
         private int tokens;

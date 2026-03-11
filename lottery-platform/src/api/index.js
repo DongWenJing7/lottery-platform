@@ -10,6 +10,8 @@ export const playerApi = {
   getLogs: (params) => request.get('/player/logs', { params }),
   getRechargeOrders: (params) => request.get('/player/recharge', { params }),
   submitRecharge: (data) => request.post('/player/recharge', data),
+  confirmPayment: (id, data) => request.post(`/player/recharge/${id}/pay`, data),
+  getPaymentConfig: () => request.get('/player/payment-config'),
   drawLottery: () => request.post('/lottery/draw'),
   getLotteryConfig: () => request.get('/lottery/config'),
   getWarehouse: (params) => request.get('/player/warehouse', { params }),
@@ -23,6 +25,10 @@ export const playerApi = {
   getOrders: (params) => request.get('/player/orders', { params }),
   updateProfile: (data) => request.put('/player/profile', data),
   bindPhone: (data) => request.put('/player/bindPhone', data),
+
+  // 售后
+  submitAfterSale: (data) => request.post('/player/after-sale', data),
+  getAfterSales: (params) => request.get('/player/after-sale', { params }),
 }
 
 export const agentApi = {
@@ -52,9 +58,23 @@ export const adminApi = {
   confirmRecharge: (id) => request.post(`/admin/recharge/${id}/confirm`),
   rejectRecharge: (id, reason) => request.post(`/admin/recharge/${id}/reject`, { reason }),
   getOrders: (params) => request.get('/admin/orders', { params }),
-  shipOrder: (id) => request.post(`/admin/orders/${id}/ship`),
+  shipOrder: (id, data) => request.post(`/admin/orders/${id}/ship`, data),
   completeOrder: (id) => request.post(`/admin/orders/${id}/done`),
   getAgents: (params) => request.get('/admin/agents', { params }),
   getMarket: (params) => request.get('/admin/market', { params }),
   removeMarketItem: (id) => request.delete(`/admin/market/${id}`),
+
+  // 售后管理
+  getAfterSales: (params) => request.get('/admin/after-sale', { params }),
+  approveAfterSale: (id) => request.post(`/admin/after-sale/${id}/approve`),
+  rejectAfterSale: (id, reason) => request.post(`/admin/after-sale/${id}/reject`, { reason }),
+  completeAfterSale: (id) => request.post(`/admin/after-sale/${id}/done`),
+
+  // 支付配置
+  getPaymentConfig: () => request.get('/admin/config/payment'),
+  savePaymentConfig: (data) => request.post('/admin/config/payment', data),
+
+  // 导出
+  exportRechargeOrders: (status) => request.get('/admin/recharge/export', { params: { status }, responseType: 'blob' }),
+  exportDeliveryOrders: (status) => request.get('/admin/orders/export', { params: { status }, responseType: 'blob' }),
 }

@@ -39,6 +39,7 @@ const routes = [
       { path: 'orders', name: 'AdminOrders', component: () => import('@/views/admin/OrdersView.vue') },
       { path: 'agents', name: 'AdminAgents', component: () => import('@/views/admin/AgentsView.vue') },
       { path: 'market', name: 'AdminMarket', component: () => import('@/views/admin/MarketView.vue') },
+      { path: 'after-sale', name: 'AdminAfterSale', component: () => import('@/views/admin/AfterSaleView.vue') },
     ]
   },
   { path: '/:pathMatch(.*)*', component: () => import('@/views/auth/NotFoundView.vue') }
