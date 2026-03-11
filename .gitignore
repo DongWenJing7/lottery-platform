@@ -1,0 +1,35 @@
+# Java
+lottery-backend/target/
+*.class
+*.jar
+*.war
+
+# Maven
+lottery-backend/.mvn/
+lottery-backend/mvnw
+lottery-backend/mvnw.cmd
+
+# Node
+lottery-platform/node_modules/
+lottery-platform/dist/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+*.env
+*.env.local
+
+# Deploy artifacts
+deploy/*.jar
+
+# Claude
+.claude/

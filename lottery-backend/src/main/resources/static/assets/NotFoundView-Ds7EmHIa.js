@@ -1,0 +1,1 @@
+import{_ as s,o as t,c as a,a as o}from"./index-Bt4WsKxu.js";const c={},n={class:"page"};function r(_,e){return t(),a("div",n,[...e[0]||(e[0]=[o("h3",null,"404",-1),o("p",null,"开发中...",-1)])])}const l=s(c,[["render",r],["__scopeId","data-v-6e2ec249"]]);export{l as default};

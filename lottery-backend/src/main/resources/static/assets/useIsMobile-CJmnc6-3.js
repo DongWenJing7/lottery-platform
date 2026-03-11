@@ -1,0 +1,1 @@
+import{r as s,j as i,W as r}from"./index-Bt4WsKxu.js";function m(o=768){const e=window.matchMedia(`(max-width: ${o-1}px)`),n=s(e.matches);function t(a){n.value=a.matches}return i(()=>e.addEventListener("change",t)),r(()=>e.removeEventListener("change",t)),{isMobile:n}}export{m as u};

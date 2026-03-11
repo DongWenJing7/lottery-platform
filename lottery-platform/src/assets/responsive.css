@@ -1,0 +1,72 @@
+/* ===== Admin 端移动端响应式适配 ===== */
+
+@media (max-width: 767px) {
+  /* 弹窗：移动端接近全屏宽度 */
+  .el-dialog {
+    --el-dialog-width: 92% !important;
+    width: 92% !important;
+    max-width: 92vw !important;
+    margin: 8vh auto !important;
+  }
+
+  /* 表格：外层容器横向滚动 */
+  .card {
+    overflow-x: auto !important;
+  }
+  .el-table {
+    min-width: 700px;
+  }
+
+  /* card 间距缩小 */
+  .card {
+    padding: 12px !important;
+  }
+
+  /* page-header 适配 */
+  .page-header h2 {
+    font-size: 17px !important;
+  }
+
+  /* 分页组件简化 */
+  .pagination .el-pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* toolbar 搜索框全宽 */
+  .toolbar .el-input {
+    width: 100% !important;
+  }
+
+  /* radio-group 可滚动 */
+  .toolbar .el-radio-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  /* config-card inline form 移动端换行 */
+  .config-card .el-form--inline .el-form-item {
+    display: flex;
+    margin-right: 0 !important;
+    width: 100%;
+  }
+  .config-card .el-form--inline .el-form-item .el-select {
+    width: 100% !important;
+  }
+
+  /* Dashboard stat cards: 一行两个 */
+  .el-row .el-col-4 {
+    max-width: 50% !important;
+    flex: 0 0 50% !important;
+    margin-bottom: 12px;
+  }
+
+  /* stat-card 数字缩小 */
+  .stat-value {
+    font-size: 22px !important;
+  }
+  .stat-card {
+    padding: 14px !important;
+  }
+}
