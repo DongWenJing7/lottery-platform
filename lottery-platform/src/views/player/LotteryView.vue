@@ -40,12 +40,14 @@
     <van-overlay :show="!!result" @click="result = null" class="result-overlay">
       <div class="result-modal" @click.stop :class="{ jackpot: result?.prize?.isJackpot }">
         <div class="result-glow"></div>
-        <div v-if="result?.prize?.image" class="result-img">
+        <div v-if="result?.prize?.type === 'token'" class="result-img token-result-icon">&#x1FA99;</div>
+        <div v-else-if="result?.prize?.image" class="result-img">
           <img :src="result.prize.image" alt="" />
         </div>
         <div class="result-badge" v-if="result?.prize?.isJackpot">JACKPOT</div>
         <div class="result-title">{{ result?.prize?.isJackpot ? '恭喜中大奖！' : '获得奖品' }}</div>
         <div class="result-name">{{ result?.prize?.name }}</div>
+        <div v-if="result?.prize?.type === 'token'" class="result-token-hint">+{{ result.prize.tokenReward }} 代币已自动到账</div>
         <van-button round block color="#f0c040" class="result-btn" @click="result = null">
           <span style="color:#111;font-weight:600">继续抽奖</span>
         </van-button>
@@ -55,15 +57,17 @@
     <!-- 奖品列表 -->
     <div class="section-title">奖品一览</div>
     <div class="prize-grid">
-      <div v-for="p in config.prizes" :key="p.id" class="prize-card" :class="{ 'is-jackpot': p.isJackpot }">
-        <div v-if="p.image" class="prize-img">
+      <div v-for="p in config.prizes" :key="p.id" class="prize-card" :class="{ 'is-jackpot': p.isJackpot, 'is-token': p.type === 'token' }">
+        <div v-if="p.type === 'token'" class="prize-img token-icon">&#x1FA99;</div>
+        <div v-else-if="p.image" class="prize-img">
           <img :src="p.image" alt="" />
         </div>
         <div v-else class="prize-img placeholder">?</div>
         <div class="prize-name">{{ p.name }}</div>
         <div class="prize-meta">
           <van-tag v-if="p.isJackpot" color="rgba(240,192,64,0.15)" text-color="#f0c040" size="small">大奖</van-tag>
-          <span class="prize-recycle">{{ p.recycleTokens }} 币</span>
+          <span v-if="p.type === 'token'" class="prize-token-reward">+{{ p.tokenReward }} 币</span>
+          <span v-else class="prize-recycle">{{ p.recycleTokens }} 币</span>
         </div>
       </div>
       <van-empty v-if="!config.prizes?.length" description="暂无奖品" />
@@ -272,4 +276,19 @@ async function doDraw() {
 .prize-name { font-size: 12px; font-weight: 500; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prize-meta { display: flex; align-items: center; justify-content: center; gap: 4px; }
 .prize-recycle { font-size: 11px; color: #666; }
+.prize-token-reward { font-size: 11px; color: #f0c040; font-weight: 600; }
+.prize-card.is-token {
+  border-color: rgba(240,192,64,0.15);
+  background: linear-gradient(180deg, rgba(240,192,64,0.04), #1a1a1a);
+}
+.token-icon {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px; background: none !important;
+}
+.token-result-icon {
+  font-size: 64px; display: flex; align-items: center; justify-content: center;
+}
+.result-token-hint {
+  font-size: 14px; color: #52c41a; margin-bottom: 16px; font-weight: 500;
+}
 </style>

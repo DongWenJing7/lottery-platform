@@ -52,7 +52,7 @@ import { playerApi } from '@/api'
 const userStore = useUserStore()
 const info = ref({})
 const logs = ref([])
-const typeMap = { recharge: '充值', draw: '抽奖', recycle: '回收', sell: '出售', buy: '购买', manual: '调整' }
+const typeMap = { recharge: '充值', draw: '抽奖', draw_reward: '抽奖奖励', recycle: '回收', sell: '出售', buy: '购买', manual: '调整' }
 
 onMounted(async () => {
   try {

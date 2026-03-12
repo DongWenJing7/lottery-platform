@@ -51,7 +51,7 @@ CREATE TABLE `token_log` (
   `user_id` bigint NOT NULL,
   `amount` int NOT NULL COMMENT '正数增加 负数减少',
   `balance_after` int NOT NULL COMMENT '变动后余额',
-  `type` enum('recharge','draw','recycle','sell','buy','manual','refund') NOT NULL,
+  `type` enum('recharge','draw','recycle','sell','buy','manual','refund','draw_reward') NOT NULL,
   `ref_id` bigint COMMENT '关联订单/记录ID',
   `remark` varchar(200),
   `created_at` datetime DEFAULT NOW()
@@ -61,11 +61,13 @@ CREATE TABLE `token_log` (
 CREATE TABLE `prize` (
   `id` bigint PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(100) NOT NULL,
+  `type` varchar(10) NOT NULL DEFAULT 'item' COMMENT '奖品类型: item=实物, token=代币',
   `image` varchar(255),
   `value` decimal(10,2) COMMENT '市场价值（展示用）',
   `probability` decimal(5,2) DEFAULT 0.00 COMMENT '概率百分比，如0.90表示0.9%',
   `is_jackpot` tinyint DEFAULT 0 COMMENT '是否大奖',
   `recycle_tokens` int DEFAULT 0 COMMENT '回收可得代币',
+  `token_reward` int DEFAULT 0 COMMENT '代币奖励数量(type=token时生效)',
   `stock` int DEFAULT -1 COMMENT '-1不限库存',
   `status` tinyint DEFAULT 1,
   `created_at` datetime DEFAULT NOW()
