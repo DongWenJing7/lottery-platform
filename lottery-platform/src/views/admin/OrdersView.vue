@@ -9,6 +9,10 @@
         <el-radio-button label="shipped">已发货</el-radio-button>
         <el-radio-button label="done">已完成</el-radio-button>
       </el-radio-group>
+      <el-input v-model="keyword" placeholder="搜索订单号/用户/收件人/手机号" clearable style="width: 260px; margin-left: 12px;" @clear="loadData">
+        <template #prefix><el-icon><Search /></el-icon></template>
+      </el-input>
+      <el-button type="primary" @click="loadData" style="margin-left: 10px;">搜索</el-button>
     </div>
     <el-table :data="list" stripe>
       <el-table-column type="index" label="序号" width="70" :index="i => (page - 1) * size + i + 1" />
@@ -51,13 +55,14 @@ import { adminApi } from '@/api'
 
 const list = ref([])
 const status = ref('pending')
+const keyword = ref('')
 const page = ref(1)
 const size = ref(20)
 const total = ref(0)
 
 async function loadData() {
   try {
-    const res = await adminApi.getOrders({ page: page.value, size: size.value, status: status.value || undefined })
+    const res = await adminApi.getOrders({ page: page.value, size: size.value, status: status.value || undefined, keyword: keyword.value || undefined })
     list.value = res.data.list
     total.value = res.data.total
   } catch (e) { ElMessage.error(e.message || '操作失败') }
@@ -87,6 +92,6 @@ onMounted(loadData)
 <style scoped>
 .page-header h2 { margin: 0 0 20px; font-size: 20px; color: #1a1a1a; }
 .card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-.toolbar { margin-bottom: 16px; }
+.toolbar { margin-bottom: 16px; display: flex; align-items: center; }
 .pagination { margin-top: 16px; display: flex; justify-content: flex-end; }
 </style>

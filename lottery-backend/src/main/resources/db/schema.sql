@@ -130,6 +130,39 @@ CREATE TABLE `delivery_order` (
   `done_at` datetime
 ) COMMENT '发货订单表';
 
+-- 聊天消息表
+CREATE TABLE `chat_message` (
+  `id` bigint PRIMARY KEY AUTO_INCREMENT,
+  `sender_id` bigint NOT NULL,
+  `receiver_id` bigint NOT NULL,
+  `content` text NOT NULL,
+  `is_read` tinyint DEFAULT 0,
+  `is_market` tinyint DEFAULT 0 COMMENT '是否市场私聊发起的消息',
+  `created_at` datetime DEFAULT NOW()
+) COMMENT '聊天消息表';
+
+-- 好友关系表
+CREATE TABLE `friendship` (
+  `id` bigint PRIMARY KEY AUTO_INCREMENT,
+  `user_id` bigint NOT NULL COMMENT '发起申请方',
+  `friend_id` bigint NOT NULL COMMENT '接收方',
+  `status` tinyint NOT NULL DEFAULT 0 COMMENT '0待确认 1已同意 2已拒绝',
+  `created_at` datetime DEFAULT NOW(),
+  `updated_at` datetime DEFAULT NOW() ON UPDATE NOW(),
+  INDEX idx_user (user_id, status),
+  INDEX idx_friend (friend_id, status),
+  UNIQUE KEY uk_pair (user_id, friend_id)
+) COMMENT '好友关系表';
+
+-- 单边会话删除记录表
+CREATE TABLE `chat_conversation_delete` (
+  `id` bigint PRIMARY KEY AUTO_INCREMENT,
+  `user_id` bigint NOT NULL,
+  `target_id` bigint NOT NULL,
+  `deleted_at` datetime NOT NULL DEFAULT NOW(),
+  UNIQUE KEY uk_pair (user_id, target_id)
+) COMMENT '单边会话删除记录';
+
 -- 默认管理员账号（密码: admin123，BCrypt加密后替换）
 INSERT INTO `user` (username, password, nickname, role)
 VALUES ('admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '管理员', 'admin');
