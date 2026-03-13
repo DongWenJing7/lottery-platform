@@ -19,7 +19,7 @@
 
 | 端 | 技术 |
 |---|------|
-| 前端 | Vue 3 + Vite + Vue Router 4 + Pinia + Vant 4 + Element Plus |
+| 前端 | Vue 3 + Vite + Vue Router 4 + Pinia + Vant 4 + Element Plus + ECharts |
 | 后端 | Java 17 + Spring Boot 3.x + MyBatis-Plus + MySQL 8 + Redis |
 | 鉴权 | JWT + BCrypt |
 | 适配 | 移动端 H5（postcss-px-to-viewport） |
@@ -62,7 +62,7 @@
 - [x] 代理个人中心
 
 ### ✅ 总后台
-- [x] 数据概览（总用户数、充值总量、今日抽奖、待处理订单）
+- [x] 数据概览（总用户数、充值总量、今日抽奖、待处理订单、趋势折线图、代理拉新排行）
 - [x] 玩家管理（搜索、代币增减、封禁/解封、手动增删仓库奖品、按代理筛选）
 - [x] 创建用户（支持创建 player/agent/admin 角色）
 - [x] 奖品管理（增删改查，概率配置为百分比如 0.9%）
@@ -173,4 +173,4 @@ npm run dev
 - [ ] 总后台手动升降级代理
 - [ ] 前端单元测试
 - [ ] 后端接口单元测试
-- [ ] 生产环境部署配置（Nginx + 打包）
+- [x] 生产环境部署配置（Nginx + 打包）

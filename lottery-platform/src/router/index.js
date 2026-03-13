@@ -15,6 +15,9 @@ const routes = [
       { path: 'warehouse', name: 'Warehouse', component: () => import('@/views/player/WarehouseView.vue') },
       { path: 'market', name: 'Market', component: () => import('@/views/player/MarketView.vue') },
       { path: 'orders', name: 'PlayerOrders', component: () => import('@/views/player/OrdersView.vue') },
+      { path: 'friends', name: 'Friends', component: () => import('@/views/player/FriendsView.vue') },
+      { path: 'chat', name: 'ChatList', component: () => import('@/views/player/ChatListView.vue') },
+      { path: 'chat/:userId', name: 'Chat', component: () => import('@/views/player/ChatView.vue') },
       { path: 'profile', name: 'Profile', component: () => import('@/views/player/ProfileView.vue') },
     ]
   },

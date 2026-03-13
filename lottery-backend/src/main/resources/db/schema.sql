@@ -53,7 +53,7 @@ CREATE TABLE `token_log` (
   `user_id` bigint NOT NULL,
   `amount` int NOT NULL COMMENT '正数增加 负数减少',
   `balance_after` int NOT NULL COMMENT '变动后余额',
-  `type` enum('recharge','draw','recycle','sell','buy','manual','refund') NOT NULL,
+  `type` enum('recharge','draw','recycle','sell','buy','manual','refund','draw_reward') NOT NULL,
   `ref_id` bigint COMMENT '关联订单/记录ID',
   `remark` varchar(200),
   `created_at` datetime DEFAULT NOW()
@@ -63,11 +63,13 @@ CREATE TABLE `token_log` (
 CREATE TABLE `prize` (
   `id` bigint PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(100) NOT NULL,
+  `type` varchar(10) NOT NULL DEFAULT 'item' COMMENT '奖品类型: item=实物, token=代币',
   `image` varchar(255),
   `value` decimal(10,2) COMMENT '市场价值（展示用）',
   `probability` decimal(5,2) DEFAULT 0.00 COMMENT '概率百分比，如0.90表示0.9%',
   `is_jackpot` tinyint DEFAULT 0 COMMENT '是否大奖',
   `recycle_tokens` int DEFAULT 0 COMMENT '回收可得代币',
+  `token_reward` int DEFAULT 0 COMMENT '代币奖励数量(type=token时生效)',
   `stock` int DEFAULT -1 COMMENT '-1不限库存',
   `status` tinyint DEFAULT 1,
   `created_at` datetime DEFAULT NOW()
@@ -155,6 +157,39 @@ CREATE TABLE `after_sale` (
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB CHARSET=utf8mb4 COMMENT '售后表';
+
+-- 聊天消息表
+CREATE TABLE `chat_message` (
+  `id` bigint PRIMARY KEY AUTO_INCREMENT,
+  `sender_id` bigint NOT NULL,
+  `receiver_id` bigint NOT NULL,
+  `content` text NOT NULL,
+  `is_read` tinyint DEFAULT 0,
+  `is_market` tinyint DEFAULT 0 COMMENT '是否市场私聊发起的消息',
+  `created_at` datetime DEFAULT NOW()
+) COMMENT '聊天消息表';
+
+-- 好友关系表
+CREATE TABLE `friendship` (
+  `id` bigint PRIMARY KEY AUTO_INCREMENT,
+  `user_id` bigint NOT NULL COMMENT '发起申请方',
+  `friend_id` bigint NOT NULL COMMENT '接收方',
+  `status` tinyint NOT NULL DEFAULT 0 COMMENT '0待确认 1已同意 2已拒绝',
+  `created_at` datetime DEFAULT NOW(),
+  `updated_at` datetime DEFAULT NOW() ON UPDATE NOW(),
+  INDEX idx_user (user_id, status),
+  INDEX idx_friend (friend_id, status),
+  UNIQUE KEY uk_pair (user_id, friend_id)
+) COMMENT '好友关系表';
+
+-- 单边会话删除记录表
+CREATE TABLE `chat_conversation_delete` (
+  `id` bigint PRIMARY KEY AUTO_INCREMENT,
+  `user_id` bigint NOT NULL,
+  `target_id` bigint NOT NULL,
+  `deleted_at` datetime NOT NULL DEFAULT NOW(),
+  UNIQUE KEY uk_pair (user_id, target_id)
+) COMMENT '单边会话删除记录';
 
 -- 默认管理员账号（密码: admin123，BCrypt加密后替换）
 INSERT INTO `user` (username, password, nickname, role)

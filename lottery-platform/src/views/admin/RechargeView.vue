@@ -27,9 +27,10 @@
         <el-radio-button label="done">已确认</el-radio-button>
         <el-radio-button label="rejected">已驳回</el-radio-button>
       </el-radio-group>
-      <el-input v-model="keyword" placeholder="搜索订单号/用户/凭证" clearable style="width: 220px; margin-left: 12px;" @keyup.enter="loadData" @clear="loadData">
+      <el-input v-model="keyword" placeholder="搜索订单号/用户/凭证/备注" clearable style="width: 220px; margin-left: 12px;" @keyup.enter="loadData" @clear="loadData">
         <template #prefix><el-icon><Search /></el-icon></template>
       </el-input>
+      <el-button type="primary" @click="loadData" style="margin-left: 10px;">搜索</el-button>
       <el-button type="success" @click="handleExport" style="margin-left: 12px;">导出Excel</el-button>
     </div>
     <el-table :data="list" stripe>

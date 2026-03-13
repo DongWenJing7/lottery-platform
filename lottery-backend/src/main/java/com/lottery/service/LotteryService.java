@@ -120,18 +120,7 @@ public class LotteryService {
             record.setConsecutiveCount(isJackpot ? 0 : count + 1);
             drawRecordMapper.insert(record);
 
-            // 写入仓库（"谢谢参与"等无价值奖品不入仓库）
-            Warehouse warehouse = null;
-            boolean hasValue = prize.getValue() != null && prize.getValue() > 0;
-            if (hasValue) {
-                warehouse = new Warehouse();
-                warehouse.setUserId(userId);
-                warehouse.setPrizeId(prize.getId());
-                warehouse.setStatus("held");
-                warehouseMapper.insert(warehouse);
-            }
-
-            // 写代币流水
+            // 写代币流水（抽奖消耗）
             TokenLog log = new TokenLog();
             log.setUserId(userId);
             log.setAmount(-cost);
@@ -141,12 +130,43 @@ public class LotteryService {
             log.setRemark("抽奖消耗");
             tokenLogMapper.insert(log);
 
+            // 代币类型奖品直接加余额，实物奖品入仓库
+            Warehouse warehouse = null;
+            boolean hasValue = prize.getValue() != null && prize.getValue() > 0;
+            if ("token".equals(prize.getType())) {
+                // 代币奖品：直接加余额
+                int reward = prize.getTokenReward() != null ? prize.getTokenReward() : 0;
+                if (reward > 0) {
+                    userMapper.addBalance(userId, reward);
+                    user = userMapper.selectById(userId);
+                    newBalance = user.getBalance();
+
+                    // 写代币奖励流水
+                    TokenLog rewardLog = new TokenLog();
+                    rewardLog.setUserId(userId);
+                    rewardLog.setAmount(reward);
+                    rewardLog.setBalanceAfter(newBalance);
+                    rewardLog.setType("draw_reward");
+                    rewardLog.setRefId(record.getId());
+                    rewardLog.setRemark("抽奖获得代币: " + prize.getName());
+                    tokenLogMapper.insert(rewardLog);
+                }
+            } else if (hasValue) {
+                warehouse = new Warehouse();
+                warehouse.setUserId(userId);
+                warehouse.setPrizeId(prize.getId());
+                warehouse.setStatus("held");
+                warehouseMapper.insert(warehouse);
+            }
+
             // 返回结果
             Map<String, Object> prizeInfo = new HashMap<>();
             prizeInfo.put("id", prize.getId());
             prizeInfo.put("name", prize.getName());
             prizeInfo.put("image", prize.getImage());
             prizeInfo.put("isJackpot", prize.getIsJackpot());
+            prizeInfo.put("type", prize.getType());
+            prizeInfo.put("tokenReward", prize.getTokenReward());
 
             Map<String, Object> result = new HashMap<>();
             result.put("prize", prizeInfo);

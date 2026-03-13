@@ -50,7 +50,6 @@ public class AgentController {
                                    @RequestParam(required = false) Integer month) {
         Long userId = AuthInterceptor.CURRENT_USER_ID.get();
         if (year == null) year = LocalDate.now().getYear();
-        if (month == null) month = LocalDate.now().getMonthValue();
         return Result.success(agentService.getCommission(userId, year, month));
     }
 

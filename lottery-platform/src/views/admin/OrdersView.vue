@@ -9,6 +9,10 @@
         <el-radio-button label="shipped">已发货</el-radio-button>
         <el-radio-button label="done">已完成</el-radio-button>
       </el-radio-group>
+      <el-input v-model="keyword" placeholder="搜索订单号/用户/收件人/手机号" clearable style="width: 260px; margin-left: 12px;" @clear="loadData">
+        <template #prefix><el-icon><Search /></el-icon></template>
+      </el-input>
+      <el-button type="primary" @click="loadData" style="margin-left: 10px;">搜索</el-button>
       <el-button type="success" @click="handleExport" style="margin-left: 12px;">导出Excel</el-button>
     </div>
     <el-table :data="list" stripe>
@@ -81,6 +85,7 @@ const refreshPendingCounts = inject('refreshPendingCounts', () => {})
 
 const list = ref([])
 const status = ref('pending')
+const keyword = ref('')
 const page = ref(1)
 const size = ref(20)
 const total = ref(0)
@@ -89,7 +94,7 @@ const expressCompanies = ['顺丰', '中通', '圆通', '韵达', '申通', 'EMS
 
 async function loadData() {
   try {
-    const res = await adminApi.getOrders({ page: page.value, size: size.value, status: status.value || undefined })
+    const res = await adminApi.getOrders({ page: page.value, size: size.value, status: status.value || undefined, keyword: keyword.value || undefined })
     list.value = res.data.list
     total.value = res.data.total
   } catch (e) { ElMessage.error(e.message || '操作失败') }

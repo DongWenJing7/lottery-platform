@@ -36,6 +36,12 @@
           </template>
         </el-table-column>
         <el-table-column prop="name" label="名称" />
+        <el-table-column label="类型" width="80">
+          <template #default="{ row }">
+            <el-tag v-if="row.type === 'token'" type="success" size="small">代币</el-tag>
+            <el-tag v-else size="small">实物</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="value" label="市场价" width="100" />
         <el-table-column label="中奖率" width="90">
           <template #default="{ row }">{{ calcPercent(row.probability) }}</template>
@@ -70,6 +76,15 @@
     <el-dialog v-model="dialog" :title="form.id ? '编辑奖品' : '新增奖品'" width="500">
       <el-form :model="form" label-width="90px">
         <el-form-item label="名称"><el-input v-model="form.name" /></el-form-item>
+        <el-form-item label="奖品类型">
+          <el-select v-model="form.type" style="width:120px">
+            <el-option label="实物" value="item" />
+            <el-option label="代币" value="token" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="form.type === 'token'" label="代币数量">
+          <el-input-number v-model="form.tokenReward" :min="0" />
+        </el-form-item>
         <el-form-item label="奖品图片">
           <div style="display:flex;align-items:flex-end;gap:10px">
             <el-image v-if="form.image" :src="form.image" :preview-src-list="[form.image]" preview-teleported class="prize-preview" fit="cover" />
@@ -86,7 +101,7 @@
             </el-upload>
           </div>
         </el-form-item>
-        <el-form-item label="市场价值"><el-input-number v-model="form.value" :min="0" :precision="2" /></el-form-item>
+        <el-form-item v-if="form.type !== 'token'" label="市场价值"><el-input-number v-model="form.value" :min="0" :precision="2" /></el-form-item>
         <el-form-item label="中奖权重">
           <div class="weight-control">
             <el-slider
@@ -219,7 +234,7 @@ function openForm(row) {
   if (row) {
     form.value = { ...row, isJackpotBool: !!row.isJackpot }
   } else {
-    form.value = { name: '', image: '', value: 0, probability: 0, isJackpotBool: false, recycleTokens: 0, stock: -1 }
+    form.value = { name: '', type: 'item', image: '', value: 0, probability: 0, isJackpotBool: false, recycleTokens: 0, tokenReward: 0, stock: -1 }
   }
   dialog.value = true
 }

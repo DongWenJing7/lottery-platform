@@ -13,7 +13,10 @@
           <span class="market-price">{{ item.price }} 代币</span>
         </div>
         <div class="market-seller">卖家：{{ item.seller?.nickname }}</div>
-        <van-button size="small" type="warning" round block @click="handleBuy(item)">购买</van-button>
+        <div class="market-actions">
+          <van-button size="small" type="warning" round class="action-buy" @click="handleBuy(item)">购买</van-button>
+          <van-button v-if="item.seller?.id != myId" size="small" round plain class="action-chat" @click="goChat(item)">私聊</van-button>
+        </div>
       </div>
       <van-empty v-if="!list.length" description="暂无商品" />
     </div>
@@ -21,12 +24,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { showToast, showConfirmDialog } from 'vant'
 import { playerApi } from '@/api'
 import { useUserStore } from '@/stores/userStore'
 
+const router = useRouter()
 const userStore = useUserStore()
+const myId = computed(() => userStore.userInfo?.id)
 const list = ref([])
 const keyword = ref('')
 const buying = ref(false)
@@ -58,6 +64,13 @@ async function handleBuy(item) {
   }
 }
 
+function goChat(item) {
+  router.push({
+    path: `/player/chat/${item.seller.id}`,
+    query: { from: 'market', name: item.seller.nickname, product: item.prize?.name, price: item.price }
+  })
+}
+
 onMounted(loadData)
 </script>
 
@@ -75,4 +88,7 @@ onMounted(loadData)
 .market-name { font-size: 15px; font-weight: 500; }
 .market-price { font-size: 16px; font-weight: 700; color: #f0c040; }
 .market-seller { font-size: 12px; color: #888; margin-bottom: 10px; }
+.market-actions { display: flex; gap: 10px; }
+.action-buy { flex: 1; }
+.action-chat { flex: 1; color: #f0c040 !important; border-color: #f0c040 !important; }
 </style>

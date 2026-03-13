@@ -80,14 +80,17 @@ public class AgentService {
             throw new BusinessException("代理信息不存在");
         }
 
-        // 获取旗下玩家 ID
+        // 获取旗下玩家
         List<User> players = userMapper.selectList(
                 new LambdaQueryWrapper<User>().eq(User::getAgentId, userId)
         );
-        List<Long> playerIds = players.stream().map(User::getId).collect(Collectors.toList());
+        Map<Long, User> playerMap = players.stream().collect(Collectors.toMap(User::getId, u -> u));
+        List<Long> playerIds = new ArrayList<>(playerMap.keySet());
 
         List<Map<String, Object>> monthlyList = new ArrayList<>();
         BigDecimal allTimeTotal = BigDecimal.ZERO;
+        int startYear = 0;
+        BigDecimal rate = agent.getCommissionRate() != null ? agent.getCommissionRate() : BigDecimal.ZERO;
 
         if (!playerIds.isEmpty()) {
             LambdaQueryWrapper<RechargeOrder> wrapper = new LambdaQueryWrapper<RechargeOrder>()
@@ -95,41 +98,84 @@ public class AgentService {
                     .eq(RechargeOrder::getStatus, "done");
 
             List<RechargeOrder> orders = rechargeOrderMapper.selectList(wrapper);
-            BigDecimal rate = agent.getCommissionRate();
 
-            // 按月分组（选中年份），用于月度明细
-            Map<Integer, Double> monthlyAmount = new TreeMap<>();
-            // 全量累计（所有年份），用于累计佣金
-            double allTimeAmount = 0;
+            // 使用数据库中累计的佣金（历史汇率准确）
+            allTimeTotal = agent.getTotalCommission() != null ? agent.getTotalCommission() : BigDecimal.ZERO;
 
+            // 找到最早有数据的年份
             for (RechargeOrder order : orders) {
-                if (order.getCreatedAt() == null || order.getAmount() == null) continue;
-                allTimeAmount += order.getAmount();
-                if (order.getCreatedAt().getYear() == year) {
-                    int m = order.getCreatedAt().getMonthValue();
-                    if (month != null && month > 0 && m != month) continue;
-                    monthlyAmount.merge(m, order.getAmount(), Double::sum);
+                if (order.getCreatedAt() != null) {
+                    int y = order.getCreatedAt().getYear();
+                    if (startYear == 0 || y < startYear) startYear = y;
                 }
             }
 
-            for (Map.Entry<Integer, Double> entry : monthlyAmount.entrySet()) {
-                Map<String, Object> item = new HashMap<>();
-                item.put("month", entry.getKey());
-                BigDecimal commission = BigDecimal.valueOf(entry.getValue())
-                        .multiply(rate)
-                        .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-                item.put("amount", commission);
-                monthlyList.add(item);
+            // 筛选当年订单，按月 → 按玩家分组
+            Map<Integer, Map<Long, List<RechargeOrder>>> monthPlayerOrders = new TreeMap<>();
+            for (RechargeOrder order : orders) {
+                if (order.getCreatedAt() == null || order.getAmount() == null) continue;
+                if (order.getCreatedAt().getYear() != year) continue;
+                int m = order.getCreatedAt().getMonthValue();
+                if (month != null && month > 0 && m != month) continue;
+                monthPlayerOrders
+                        .computeIfAbsent(m, k -> new LinkedHashMap<>())
+                        .computeIfAbsent(order.getUserId(), k -> new ArrayList<>())
+                        .add(order);
             }
 
-            allTimeTotal = BigDecimal.valueOf(allTimeAmount)
-                    .multiply(rate)
-                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+            for (Map.Entry<Integer, Map<Long, List<RechargeOrder>>> monthEntry : monthPlayerOrders.entrySet()) {
+                double monthRecharge = 0;
+                List<Map<String, Object>> details = new ArrayList<>();
+
+                for (Map.Entry<Long, List<RechargeOrder>> playerEntry : monthEntry.getValue().entrySet()) {
+                    Long playerId = playerEntry.getKey();
+                    List<RechargeOrder> playerOrders = playerEntry.getValue();
+                    User player = playerMap.get(playerId);
+
+                    double playerRecharge = 0;
+                    List<Map<String, Object>> orderList = new ArrayList<>();
+                    for (RechargeOrder o : playerOrders) {
+                        playerRecharge += o.getAmount();
+                        Map<String, Object> orderItem = new LinkedHashMap<>();
+                        orderItem.put("orderNo", o.getOrderNo());
+                        orderItem.put("tokens", o.getTokens());
+                        orderItem.put("amount", o.getAmount());
+                        orderItem.put("commission", BigDecimal.valueOf(o.getAmount())
+                                .multiply(rate)
+                                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP));
+                        orderItem.put("createdAt", o.getCreatedAt());
+                        orderList.add(orderItem);
+                    }
+                    monthRecharge += playerRecharge;
+
+                    Map<String, Object> detail = new LinkedHashMap<>();
+                    detail.put("playerId", playerId);
+                    detail.put("nickname", player != null ? player.getNickname() : "未知");
+                    detail.put("rechargeAmount", playerRecharge);
+                    detail.put("commission", BigDecimal.valueOf(playerRecharge)
+                            .multiply(rate)
+                            .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP));
+                    detail.put("orders", orderList);
+                    details.add(detail);
+                }
+
+                Map<String, Object> monthItem = new LinkedHashMap<>();
+                monthItem.put("month", monthEntry.getKey());
+                monthItem.put("rechargeAmount", monthRecharge);
+                monthItem.put("commission", BigDecimal.valueOf(monthRecharge)
+                        .multiply(rate)
+                        .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP));
+                monthItem.put("details", details);
+                monthlyList.add(monthItem);
+            }
         }
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("list", monthlyList);
+        Map<String, Object> result = new LinkedHashMap<>();
         result.put("total", allTimeTotal);
+        result.put("commissionRate", rate);
+        result.put("level", agent.getLevel());
+        result.put("startYear", startYear > 0 ? startYear : year);
+        result.put("list", monthlyList);
         return result;
     }
 }

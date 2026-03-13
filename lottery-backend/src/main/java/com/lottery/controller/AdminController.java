@@ -61,6 +61,12 @@ public class AdminController {
         return Result.success(adminService.getDashboard());
     }
 
+    @GetMapping("/dashboard/charts")
+    public Result<?> getChartData(@RequestParam(defaultValue = "7") int days) {
+        if (days != 7 && days != 30) days = 7;
+        return Result.success(adminService.getChartData(days));
+    }
+
     // ==================== 玩家管理 ====================
 
     @GetMapping("/players")
@@ -169,8 +175,9 @@ public class AdminController {
     @GetMapping("/orders")
     public Result<?> getOrders(@RequestParam(defaultValue = "1") int page,
                                @RequestParam(defaultValue = "20") int size,
-                               @RequestParam(required = false) String status) {
-        return Result.success(adminService.getDeliveryOrders(page, size, status));
+                               @RequestParam(required = false) String status,
+                               @RequestParam(required = false) String keyword) {
+        return Result.success(adminService.getDeliveryOrders(page, size, status, keyword));
     }
 
     @PostMapping("/orders/{id}/ship")
@@ -191,8 +198,9 @@ public class AdminController {
 
     @GetMapping("/agents")
     public Result<?> getAgents(@RequestParam(defaultValue = "1") int page,
-                               @RequestParam(defaultValue = "20") int size) {
-        return Result.success(adminService.getAgents(page, size));
+                               @RequestParam(defaultValue = "20") int size,
+                               @RequestParam(required = false) String keyword) {
+        return Result.success(adminService.getAgents(page, size, keyword));
     }
 
     // ==================== 市场管理 ====================
@@ -200,8 +208,9 @@ public class AdminController {
     @GetMapping("/market")
     public Result<?> getMarket(@RequestParam(defaultValue = "1") int page,
                                @RequestParam(defaultValue = "20") int size,
-                               @RequestParam(required = false) String status) {
-        return Result.success(adminService.getMarket(page, size, status));
+                               @RequestParam(required = false) String status,
+                               @RequestParam(required = false) String keyword) {
+        return Result.success(adminService.getMarket(page, size, status, keyword));
     }
 
     @DeleteMapping("/market/{id}")

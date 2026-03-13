@@ -29,6 +29,22 @@ export const playerApi = {
   // 售后
   submitAfterSale: (data) => request.post('/player/after-sale', data),
   getAfterSales: (params) => request.get('/player/after-sale', { params }),
+  // Chat
+  getConversations: () => request.get('/player/chat/conversations'),
+  getChatMessages: (params) => request.get('/player/chat/messages', { params }),
+  markAsRead: (userId) => request.post('/player/chat/read', null, { params: { userId } }),
+  getUnreadCount: () => request.get('/player/chat/unread-count'),
+  searchUsers: (keyword) => request.get('/player/chat/search', { params: { keyword } }),
+  deleteConversation: (userId) => request.delete('/player/chat/conversation', { params: { userId } }),
+  getChatStatus: (userId) => request.get('/player/chat/chat-status', { params: { userId } }),
+  // Friends
+  sendFriendRequest: (targetId) => request.post('/player/friend/request', null, { params: { targetId } }),
+  acceptFriend: (id) => request.post('/player/friend/accept', null, { params: { id } }),
+  rejectFriend: (id) => request.post('/player/friend/reject', null, { params: { id } }),
+  deleteFriend: (friendUserId) => request.delete(`/player/friend/${friendUserId}`),
+  getFriendList: () => request.get('/player/friend/list'),
+  getFriendRequests: () => request.get('/player/friend/requests'),
+  getFriendPendingCount: () => request.get('/player/friend/pending-count'),
 }
 
 export const agentApi = {
@@ -41,6 +57,7 @@ export const agentApi = {
 
 export const adminApi = {
   getDashboard: () => request.get('/admin/dashboard'),
+  getChartData: (days = 7) => request.get('/admin/dashboard/charts', { params: { days } }),
   getPlayers: (params) => request.get('/admin/players', { params }),
   createUser: (data) => request.post('/admin/players', data),
   updateTokens: (id, data) => request.post(`/admin/players/${id}/tokens`, data),

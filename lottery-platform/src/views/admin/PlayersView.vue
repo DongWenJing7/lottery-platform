@@ -6,9 +6,10 @@
     </div>
     <div class="card">
       <div class="toolbar">
-        <el-input v-model="keyword" placeholder="搜索昵称/用户名" style="width:260px" @keyup.enter="loadData" clearable>
+        <el-input v-model="keyword" placeholder="搜索昵称/用户名" style="width:260px" clearable @clear="loadData">
           <template #prefix><el-icon><Search /></el-icon></template>
         </el-input>
+        <el-button type="primary" @click="loadData" style="margin-left: 10px;">搜索</el-button>
       </div>
       <el-table :data="list" stripe>
         <el-table-column type="index" label="序号" width="70" :index="i => (page - 1) * size + i + 1" />
